@@ -1,8 +1,7 @@
 
-import os
 import sys
+from pathlib import Path
 import datetime as dt
-import json
 
 from connector import WatchDB
 
@@ -55,14 +54,21 @@ def shorten_list(initial_list):
     return ', '.join(out)
 
 
-def get_default_watch(file_name: str) -> None | int:
-    try:
-        with open(file_name) as f:
-            watch_id = json.load(f)["watch_id"]
-    except (FileNotFoundError, KeyError, json.JSONDecodeError):
-        return None
-    else:
-        return watch_id
+def configure_default_watch(db: WatchDB, watch_id: int) -> None:
+    tmp = db.con.execute("""SELECT name FROM sqlite_master WHERE type='table'
+                            AND name='def_watch'""").fetchall()
+    if not tmp:
+        db.con.execute('CREATE TABLE def_watch (watch_id INT PRIMARY KEY)')
+    db.con.execute('DELETE FROM def_watch')
+    db.con.execute('INSERT INTO def_watch VALUES (?)', (watch_id,))
+    db.con.commit()
+
+
+def get_default_watch(db: WatchDB) -> int:
+    tmp = db.con.execute("SELECT watch_id FROM def_watch").fetchall()
+    if len(tmp) > 1:
+        raise ValueError("More than one entry in def_watch")
+    return tmp[0][0]
 
 
 def main():
@@ -70,20 +76,32 @@ def main():
 
     print("watchDB - watch measurement database")
 
-    database_name = os.path.join(sys.path[0], 'watchDB.sqlite3')
-    database = WatchDB(database_name)
-
-    default_watch = get_default_watch(os.path.join(sys.path[0], 'default_watch.json'))
-    if default_watch is not None:
-        database.change_watch(default_watch)
+    working_dir = Path(__file__).parent
+    if len(sys.argv) <= 1:
+        database_name = working_dir / 'watchDB.sqlite3'
     else:
-        print("Default watch is not configured or default_watch.json file is corrupted.")
+        database_name = Path(sys.argv[1])
+    database = WatchDB(str(database_name))
+
+    try:
+        default_watch = get_default_watch(database)
+        database.change_watch(default_watch)
+    except Exception:
+        print("Default watch is not configured.")
 
     while True:
         inp = input(f"{database.get_watch_name()}> ")
 
         try:
             match inp.split():
+
+                case ["change", "default", integer]:
+                    try:
+                        configure_default_watch(database, int(integer))
+                    except Exception as e:
+                        print(f"Could not change default due to error:\n{e}")
+                    else:
+                        print(f"default changed to {integer}")
 
                 case ["watches"]:
                     titles = ('watch id', 'name', 'date', 'cycles no.', 'measures no.')
