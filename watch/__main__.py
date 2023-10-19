@@ -74,16 +74,15 @@ def get_default_watch(db: WatchDB) -> int:
 
 def main():
     import prettytable as pt
+    if len(sys.argv) != 2:
+        print("Error: enter sqlite3 database file as the only argument.", file=sys.stderr)
+        exit(1)
+
+    database_name = Path(sys.argv[1])
+    database = WatchDB(str(database_name))
     INTERPOLATION_METHOD = LinearInterpolation
 
     print("watchDB - watch measurement database")
-
-    working_dir = Path(__file__).parent
-    if len(sys.argv) <= 1:
-        database_name = working_dir / 'watchDB.sqlite3'
-    else:
-        database_name = Path(sys.argv[1])
-    database = WatchDB(str(database_name))
 
     try:
         default_watch = get_default_watch(database)
