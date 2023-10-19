@@ -1,7 +1,8 @@
 
 import datetime as dt
 import sqlite3 as sl3
-from typing import Optional
+from typing import Optional, Self
+from abc import ABC, abstractmethod
 
 
 class WatchDB:
@@ -180,30 +181,26 @@ class Record(tuple):
         return self[3]
 
 
-class WatchLog:
-
-    __slots__ = 'database', 'watch', 'cycle', 'data', 't', 'y', 'z', 'h', 'size', 'n'
+class InterpolationAbstract(ABC):
     s_date = dt.datetime(dt.MINYEAR, 1, 1)
 
-    def __init__(self, database: WatchDB):
-        table: list[Record] = []
-        cursor = database.con.execute(
-            '''
-            SELECT log_id, timedate, measure
-            FROM logs
-            WHERE watch_id = ? AND cycle = ?
-            ORDER BY timedate;
-            ''',
-            (database.watch, database.cycle)
-        )
-        for row in cursor.fetchall():
-            table.append(Record(row[0], dt.datetime.fromisoformat(row[1]), row[2]))
+    @abstractmethod
+    def __init__(self, data: tuple[Record]):
+        self.data = data
 
-        self.database = database
-        self.watch = database.watch
-        self.cycle = database.cycle
-        self.data: tuple[Record] = tuple(table)
+    @abstractmethod
+    def calculate(self) -> Self:
+        ...
 
+    @abstractmethod
+    def __call__(self, x: float) -> float:
+        ...
+
+
+class QubicSplineInterpolation(InterpolationAbstract):
+
+    def __init__(self, data: tuple[Record]):
+        self.data = data
         self.t: list[float] = []
         self.y: list[float] = []
         self.z: list[float] = []
@@ -211,17 +208,7 @@ class WatchLog:
         self.size: int = 0
         self.n: int = 0
 
-    def difference(self):
-        if len(self.data) == 0:
-            raise Exception
-
-        out = [self.data[0].plus_diff(None)]
-        for w in range(1, len(self.data)):
-            out.append(self.data[w].plus_diff(round(self.data[w].measure - self.data[w - 1].measure, 1)))
-
-        return out
-
-    def interpolate(self) -> None:
+    def calculate(self) -> Self:
         if len(self.data) == 0:
             raise Exception
 
@@ -252,7 +239,9 @@ class WatchLog:
             self.z[i] = (v[i] - self.h[i] * self.z[i + 1]) / u[i]
         self.z[0] = 0
 
-    def calculate(self, x: float) -> float:
+        return self
+
+    def __call__(self, x: float) -> float:
         i = self.n
         while i >= 1 and x - self.t[i] < 0:
             i -= 1
@@ -262,8 +251,42 @@ class WatchLog:
         ci = (-self.h[i] / 6) * (self.z[i + 1] + 2 * self.z[i]) + (1 / self.h[i]) * (self.y[i + 1] - self.y[i])
         return self.y[i] + (x - self.t[i]) * (ci + (x - self.t[i]) * (bi + (x - self.t[i]) * ai))
 
-    def fill(self):
-        self.interpolate()
+
+class WatchLog:
+
+    __slots__ = 'database', 'watch', 'cycle', 'data'
+
+    def __init__(self, database: WatchDB):
+        table: list[Record] = []
+        cursor = database.con.execute(
+            '''
+            SELECT log_id, timedate, measure
+            FROM logs
+            WHERE watch_id = ? AND cycle = ?
+            ORDER BY timedate;
+            ''',
+            (database.watch, database.cycle)
+        )
+        for row in cursor.fetchall():
+            table.append(Record(row[0], dt.datetime.fromisoformat(row[1]), row[2]))
+
+        self.database = database
+        self.watch = database.watch
+        self.cycle = database.cycle
+        self.data: tuple[Record] = tuple(table)
+
+    def difference(self):
+        if len(self.data) == 0:
+            raise Exception
+
+        out = [self.data[0].plus_diff(None)]
+        for w in range(1, len(self.data)):
+            out.append(self.data[w].plus_diff(round(self.data[w].measure - self.data[w - 1].measure, 1)))
+
+        return out
+
+    def fill(self, interpolation_method: type[InterpolationAbstract] = QubicSplineInterpolation):
+        f = interpolation_method(self.data).calculate()
         seconds_in_day = 24 * 60 * 60
         start: dt.datetime = self.data[0].timedate
         end: dt.datetime = self.data[-1].timedate
@@ -272,7 +295,7 @@ class WatchLog:
 
         while start + dt.timedelta(seconds=seconds_in_day * i) <= end:
             tm = start + dt.timedelta(seconds=seconds_in_day * i)
-            cur_calc = round(self.calculate((tm - self.s_date).total_seconds()), 1)
+            cur_calc = round(f((tm - interpolation_method.s_date).total_seconds()), 1)
             tmp = Record(
                 -1,
                 start + dt.timedelta(seconds=seconds_in_day * i),
@@ -284,9 +307,9 @@ class WatchLog:
 
         return out
 
-    def stats(self) -> dict:
+    def stats(self, interpolation_method: type[InterpolationAbstract] = QubicSplineInterpolation) -> dict:
         out = {}
-        data = [w.difference for w in self.fill()[1:]]
+        data = [w.difference for w in self.fill(interpolation_method)[1:]]
         out['average'] = round(sum(data)/len(data), 2)
         out['delta'] = round(max(data) - min(data), 2)
         out['median'] = sorted(data)[len(data)//2]
