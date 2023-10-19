@@ -4,7 +4,7 @@ from pathlib import Path
 import datetime as dt
 
 from connector import WatchDB
-from interpolation.collection import QubicSplineInterpolation
+from interpolation.collection import LinearInterpolation
 
 
 def smart_prompt(wait=10, add=0):
@@ -74,6 +74,7 @@ def get_default_watch(db: WatchDB) -> int:
 
 def main():
     import prettytable as pt
+    INTERPOLATION_METHOD = LinearInterpolation
 
     print("watchDB - watch measurement database")
 
@@ -224,7 +225,7 @@ def main():
 
                 case ["fill"]:
                     try:
-                        data = database.data.fill(QubicSplineInterpolation)
+                        data = database.data.fill(INTERPOLATION_METHOD)
                     except Exception:
                         print("Unable to produce filled log.")
                     else:
@@ -234,7 +235,7 @@ def main():
 
                 case ["stat"]:
                     try:
-                        data = database.data.stats(QubicSplineInterpolation)
+                        data = database.data.stats(INTERPOLATION_METHOD)
                     except Exception:
                         print("Unable to produce stats.")
                     else:
