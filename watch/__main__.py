@@ -4,6 +4,7 @@ from pathlib import Path
 import datetime as dt
 
 from connector import WatchDB
+from interpolation.collection import QubicSplineInterpolation
 
 
 def smart_prompt(wait=10, add=0):
@@ -223,7 +224,7 @@ def main():
 
                 case ["fill"]:
                     try:
-                        data = database.data.fill()
+                        data = database.data.fill(QubicSplineInterpolation)
                     except Exception:
                         print("Unable to produce filled log.")
                     else:
@@ -233,7 +234,7 @@ def main():
 
                 case ["stat"]:
                     try:
-                        data = database.data.stats()
+                        data = database.data.stats(QubicSplineInterpolation)
                     except Exception:
                         print("Unable to produce stats.")
                     else:

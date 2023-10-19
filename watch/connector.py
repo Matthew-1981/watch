@@ -1,8 +1,9 @@
 
 import datetime as dt
 import sqlite3 as sl3
-from typing import Optional, Self
-from abc import ABC, abstractmethod
+from typing import Optional
+
+from interpolation.base import InterpolationAbstract
 
 
 class WatchDB:
@@ -152,6 +153,7 @@ class WatchDB:
 
 
 class Record(tuple):
+    s_date = dt.datetime(dt.MINYEAR, 1, 1)
 
     def __new__(cls, id_, timedate: dt.datetime, measure: float, difference: float | None | str = ''):
         if difference == '':
@@ -180,76 +182,9 @@ class Record(tuple):
             raise Exception
         return self[3]
 
-
-class InterpolationAbstract(ABC):
-    s_date = dt.datetime(dt.MINYEAR, 1, 1)
-
-    @abstractmethod
-    def __init__(self, data: tuple[Record]):
-        self.data = data
-
-    @abstractmethod
-    def calculate(self) -> Self:
-        ...
-
-    @abstractmethod
-    def __call__(self, x: float) -> float:
-        ...
-
-
-class QubicSplineInterpolation(InterpolationAbstract):
-
-    def __init__(self, data: tuple[Record]):
-        self.data = data
-        self.t: list[float] = []
-        self.y: list[float] = []
-        self.z: list[float] = []
-        self.h: list[float] = []
-        self.size: int = 0
-        self.n: int = 0
-
-    def calculate(self) -> Self:
-        if len(self.data) == 0:
-            raise Exception
-
-        x = [(j.timedate - self.s_date).total_seconds() for j in self.data]
-        y = [j.measure for j in self.data]
-        self.size = len(x)
-        self.n = self.size - 1
-
-        self.t = x.copy()
-        self.y = y.copy()
-        self.z = [0] * self.size
-        self.h = [0] * self.size
-
-        b = [0] * self.size
-        u = [0] * self.size
-        v = [0] * self.size
-
-        for i in range(0, self.n):
-            self.h[i] = self.t[i + 1] - self.t[i]
-            b[i] = 6 * (self.y[i + 1] - self.y[i]) / self.h[i]
-        u[1] = 2 * (self.h[0] + self.h[1])
-        v[1] = b[1] - b[0]
-        for i in range(2, self.n):
-            u[i] = 2 * (self.h[i - 1] + self.h[i]) - pow(self.h[i - 1], 2) / u[i - 1]
-            v[i] = b[i] - b[i - 1] - self.h[i - 1] * v[i - 1] / u[i - 1]
-        self.z[self.n] = 0
-        for i in range(self.n - 1, 0, -1):
-            self.z[i] = (v[i] - self.h[i] * self.z[i + 1]) / u[i]
-        self.z[0] = 0
-
-        return self
-
-    def __call__(self, x: float) -> float:
-        i = self.n
-        while i >= 1 and x - self.t[i] < 0:
-            i -= 1
-
-        ai = (1 / (6 * self.h[i])) * (self.z[i + 1] - self.z[i])
-        bi = self.z[i] / 2
-        ci = (-self.h[i] / 6) * (self.z[i + 1] + 2 * self.z[i]) + (1 / self.h[i]) * (self.y[i + 1] - self.y[i])
-        return self.y[i] + (x - self.t[i]) * (ci + (x - self.t[i]) * (bi + (x - self.t[i]) * ai))
+    @property
+    def as_floats(self) -> tuple[float, float]:
+        return (self.timedate - self.s_date).total_seconds(), self.measure
 
 
 class WatchLog:
@@ -285,8 +220,12 @@ class WatchLog:
 
         return out
 
-    def fill(self, interpolation_method: type[InterpolationAbstract] = QubicSplineInterpolation):
-        f = interpolation_method(self.data).calculate()
+    def _record_to_float(self) -> list[tuple[float, float]]:
+        return [item.as_floats for item in self.data]
+
+    def fill(self, interpolation_method: type[InterpolationAbstract]):
+        data = self._record_to_float()
+        f = interpolation_method(data).calculate()
         seconds_in_day = 24 * 60 * 60
         start: dt.datetime = self.data[0].timedate
         end: dt.datetime = self.data[-1].timedate
@@ -295,7 +234,7 @@ class WatchLog:
 
         while start + dt.timedelta(seconds=seconds_in_day * i) <= end:
             tm = start + dt.timedelta(seconds=seconds_in_day * i)
-            cur_calc = round(f((tm - interpolation_method.s_date).total_seconds()), 1)
+            cur_calc = round(f((tm - Record.s_date).total_seconds()), 1)
             tmp = Record(
                 -1,
                 start + dt.timedelta(seconds=seconds_in_day * i),
@@ -307,7 +246,7 @@ class WatchLog:
 
         return out
 
-    def stats(self, interpolation_method: type[InterpolationAbstract] = QubicSplineInterpolation) -> dict:
+    def stats(self, interpolation_method: type[InterpolationAbstract]) -> dict:
         out = {}
         data = [w.difference for w in self.fill(interpolation_method)[1:]]
         out['average'] = round(sum(data)/len(data), 2)
