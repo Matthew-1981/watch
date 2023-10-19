@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 import datetime as dt
 
-from connector import WatchDB
-from interpolation.collection import LinearInterpolation
+from .connector import WatchDB
+from .interpolation.collection import LinearInterpolation
 
 
 def smart_prompt(wait=10, add=0):

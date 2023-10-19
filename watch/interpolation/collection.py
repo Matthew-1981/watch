@@ -1,5 +1,6 @@
-from .base import InterpolationAbstract
 from typing import Self, Optional
+
+from .base import InterpolationAbstract
 
 
 class QubicSplineInterpolation(InterpolationAbstract):

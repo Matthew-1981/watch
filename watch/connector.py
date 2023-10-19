@@ -3,7 +3,7 @@ import datetime as dt
 import sqlite3 as sl3
 from typing import Optional
 
-from interpolation.base import InterpolationAbstract
+from .interpolation.base import InterpolationAbstract
 
 
 class WatchDB:
