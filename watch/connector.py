@@ -219,7 +219,7 @@ class WatchLog:
         if len(self.data) == 0:
             return self.__class__([])
 
-        f = interpolation_method(data).calculate()
+        f = interpolation_method.calculate(data)
         start = int(self.data[0].time_as_float)
         end = int(self.data[-1].time_as_float)
 
