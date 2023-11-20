@@ -1,7 +1,9 @@
+from __future__ import annotations
+from typing import Optional, Any, Self
 
 import datetime as dt
+from math import sqrt
 import sqlite3 as sl3
-from typing import Optional
 
 from .interpolation.base import InterpolationAbstract
 
@@ -148,108 +150,97 @@ class WatchDB:
         self.con.commit()
 
     @property
-    def data(self):
-        return WatchLog(self)
-
-
-class Record(tuple):
-    s_date = dt.datetime(dt.MINYEAR, 1, 1)
-
-    def __new__(cls, id_, timedate: dt.datetime, measure: float, difference: float | None | str = ''):
-        if difference == '':
-            return super().__new__(cls, (id_, timedate, measure))
-        else:
-            return super().__new__(cls, (id_, timedate, measure, difference))
-
-    def plus_diff(self, difference: float | None):
-        return Record(self.id, self.timedate, self.measure, difference)
-
-    @property
-    def id(self) -> int:
-        return self[0]
-
-    @property
-    def timedate(self) -> dt.datetime:
-        return self[1]
-
-    @property
-    def measure(self) -> float:
-        return self[2]
-
-    @property
-    def difference(self) -> Optional[float]:
-        if len(self) == 3:
-            raise Exception
-        return self[3]
-
-    @property
-    def as_floats(self) -> tuple[float, float]:
-        return (self.timedate - self.s_date).total_seconds(), self.measure
-
-
-class WatchLog:
-
-    __slots__ = 'database', 'watch', 'cycle', 'data'
-
-    def __init__(self, database: WatchDB):
+    def data(self) -> WatchLog:
         table: list[Record] = []
-        cursor = database.con.execute(
+        cursor = self.con.execute(
             '''
             SELECT log_id, timedate, measure
             FROM logs
             WHERE watch_id = ? AND cycle = ?
             ORDER BY timedate;
             ''',
-            (database.watch, database.cycle)
+            (self.watch, self.cycle)
         )
         for row in cursor.fetchall():
-            table.append(Record(row[0], dt.datetime.fromisoformat(row[1]), row[2]))
+            table.append(Record(time=dt.datetime.fromisoformat(row[1]), measure=row[2], id=row[0]))
+        return WatchLog(table)
 
-        self.database = database
-        self.watch = database.watch
-        self.cycle = database.cycle
-        self.data: tuple[Record] = tuple(table)
 
-    def difference(self):
+class Record:
+    s_date = dt.datetime(dt.MINYEAR, 1, 1)
+
+    def __init__(self, time: dt.datetime | float, measure: float, **other):
+        self.time: dt.datetime
+        if isinstance(time, (float, int)):
+            self.time = self.s_date + dt.timedelta(seconds=time)
+        else:
+            self.time = time
+        self.measure = measure
+        self.other = other
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(time={repr(self.time)}, measure={self.measure}, **{self.other})"
+
+    @property
+    def time_as_float(self) -> float:
+        return (self.time - self.s_date).total_seconds()
+
+    def get_all(self) -> dict[str, Any]:
+        return self.other | {"time": self.time, "measure": self.measure}
+
+
+class WatchLog:
+
+    __slots__ = 'data'
+
+    def __init__(self, data: list[Record]):
+        assert list(sorted(data, key=lambda x: x.time)) == data
+        self.data: list[Record] = data.copy()
+
+    def difference(self, index: int) -> float:
+        if not (0 <= index < len(self.data)):
+            raise IndexError("Index has to be 0 <= index < len(data).")
+        if index == 0:
+            return float('nan')
+        current = self.data[index]
+        previous = self.data[index - 1]
+        return round(current.measure - previous.measure, 1)
+
+    def get_log_with_dif(self) -> Self:
+        table = []
+        for i, entry in enumerate(self.data):
+            table.append(Record(time=entry.time, measure=entry.measure, difference=self.difference(i), **entry.other))
+        return self.__class__(table)
+
+    def fill(self, interpolation_method: type[InterpolationAbstract]) -> Self:
+        SECONDS_IN_DAY = 24 * 60 * 60
+
+        data = [(record.time_as_float, record.measure) for record in self.data]
         if len(self.data) == 0:
-            raise Exception
+            return self.__class__([])
 
-        out = [self.data[0].plus_diff(None)]
-        for w in range(1, len(self.data)):
-            out.append(self.data[w].plus_diff(round(self.data[w].measure - self.data[w - 1].measure, 1)))
-
-        return out
-
-    def _record_to_float(self) -> list[tuple[float, float]]:
-        return [item.as_floats for item in self.data]
-
-    def fill(self, interpolation_method: type[InterpolationAbstract]):
-        data = self._record_to_float()
         f = interpolation_method(data).calculate()
-        seconds_in_day = 24 * 60 * 60
-        start: dt.datetime = self.data[0].timedate
-        end: dt.datetime = self.data[-1].timedate
-        out = [Record(-1, start, self.data[0].measure, None)]
-        i = 1
+        start = int(self.data[0].time_as_float)
+        end = int(self.data[-1].time_as_float)
 
-        while start + dt.timedelta(seconds=seconds_in_day * i) <= end:
-            tm = start + dt.timedelta(seconds=seconds_in_day * i)
-            cur_calc = round(f((tm - Record.s_date).total_seconds()), 1)
-            tmp = Record(
-                -1,
-                start + dt.timedelta(seconds=seconds_in_day * i),
-                cur_calc,
-                round(cur_calc - out[-1].measure, 1)
-            )
-            out.append(tmp)
-            i += 1
+        table = []
+        for time in range(start, end + 1, SECONDS_IN_DAY):
+            table.append(Record(time=time, measure=round(f(time), 1)))
 
-        return out
+        return self.__class__(table)
 
-    def stats(self, interpolation_method: type[InterpolationAbstract]) -> dict:
-        out = {}
-        data = [w.difference for w in self.fill(interpolation_method)[1:]]
-        out['average'] = round(sum(data)/len(data), 2)
-        out['delta'] = round(max(data) - min(data), 2)
-        out['median'] = sorted(data)[len(data)//2]
-        return out
+    @property
+    def average(self) -> float:
+        data = [self.difference(i) for i in range(1, len(self.data))]
+        return round(sum(data) / len(data), 2)
+
+    @property
+    def standard_deviation(self) -> float:
+        data = [self.difference(i) for i in range(1, len(self.data))]
+        avg = self.average
+        return round(sqrt(sum((x - avg)**2 for x in data) / len(data)), 2)
+
+    @property
+    def delta(self) -> float:
+        data = [self.difference(i) for i in range(1, len(self.data))]
+        return round(max(data) - min(data), 2)
