@@ -63,7 +63,7 @@ class WatchDB:
         cursor = self.con.execute("SELECT name FROM info WHERE watch_id = ?", (self.watch,))
         return cursor.fetchone()[0]
 
-    def change_watch(self, id_: int or str):
+    def change_watch(self, id_: int | str):
         column = 'watch_id' if isinstance(id_, int) else 'name'
         cursor = self.con.execute(f'SELECT watch_id FROM info WHERE %s = ?;' % column, (id_,))
         count = tuple(cursor.fetchall())
@@ -88,6 +88,9 @@ class WatchDB:
 
     def add_watch(self, name: str):
         now = dt.datetime.now()
+        out = self.con.execute("SELECT * FROM info WHERE name = ?", (name,))
+        if len(out.fetchall()) != 0:
+            raise ValueError("Watch already in database")
         self.con.execute(
             '''
             INSERT INTO info (name, date_of_joining)
