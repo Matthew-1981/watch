@@ -120,11 +120,15 @@ class WatchDB:
         self.con.commit()
 
     def new_cycle(self):
+        if self.watch is None:
+            raise NullWatchError
         cursor = self.con.execute('SELECT MAX(cycle) FROM logs WHERE watch_id = ?', (self.watch,))
         count = cursor.fetchone()[0]
         self.cycle = count + 1
 
     def add_measure(self, measure: float):
+        if self.watch is None:
+            raise NullWatchError
         now = dt.datetime.now()
         cursor = self.con.execute(
             '''
@@ -138,6 +142,8 @@ class WatchDB:
         self.con.commit()
 
     def del_current_watch(self):
+        if self.watch is None:
+            raise NullWatchError
         self.con.execute(
             "DELETE FROM logs WHERE watch_id = ?;",
             (self.watch,)
@@ -153,11 +159,15 @@ class WatchDB:
         self.con.commit()
 
     def del_current_cycle(self):
+        if self.watch is None:
+            raise NullWatchError
         self.con.execute('DELETE FROM logs WHERE cycle = ? AND watch_id = ?', (self.cycle, self.watch))
         self.con.commit()
         self.change_watch(self.watch)
 
     def del_measure(self, log_id):
+        if self.watch is None:
+            raise NullWatchError
         cursor = self.con.execute(
             '''
             SELECT EXISTS(SELECT * FROM logs WHERE
@@ -179,6 +189,8 @@ class WatchDB:
 
     @property
     def data(self) -> WatchLog:
+        if self.watch is None:
+            raise NullWatchError
         table: list[Record] = []
         cursor = self.con.execute(
             '''
