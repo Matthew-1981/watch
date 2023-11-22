@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 
+from dataclasses import dataclass
 import datetime as dt
 import sqlite3 as sl3
 
@@ -47,20 +48,36 @@ class WatchDB:
         con.commit()
         con.close()
 
-    def database_info(self) -> list[tuple]:
-        cursor = self.con.execute('''
-        SELECT i.watch_id, name, date_of_joining, COUNT(DISTINCT cycle), COUNT(measure)
-        FROM info AS i LEFT JOIN logs AS l ON i.watch_id = l.watch_id
-        GROUP BY date_of_joining, i.watch_id
-        ORDER BY date_of_joining;
-        ''')
-        return cursor.fetchall().copy()
+    def watch_info_by_id(self, id_: int) -> WatchInfo:
+        cursor = self.con.execute('SELECT name, date_of_joining FROM info WHERE watch_id = ?', (id_,))
+        data = cursor.fetchall()
+        if len(data) == 0:
+            raise QueryError
+        name = data[0][0]
+        date_of_joining = data[0][1]
+        cursor = self.con.execute('SELECT DISTINCT cycle FROM logs WHERE watch_id = ?', (id_,))
+        cycles = [entry[0] for entry in cursor.fetchall()]
+        cursor = self.con.execute('SELECT COUNT(*) FROM logs WHERE watch_id = ?', (id_,))
+        total_count = cursor.fetchone()[0]
+        return WatchInfo(id_, name, date_of_joining, cycles, total_count)
 
-    def get_watch_name(self):
+    def watch_info_by_name(self, name: str) -> WatchInfo:
+        cursor = self.con.execute('SELECT watch_id FROM info WHERE name = ?', (name,))
+        data = cursor.fetchall()
+        if len(data) == 0:
+            raise QueryError
+        elif len(data) > 1:
+            raise InternalBDError
+        return self.watch_info_by_id(data[0][0])
+
+    def database_info(self) -> list[WatchInfo]:
+        cursor = self.con.execute('SELECT watch_id FROM info')
+        return [self.watch_info_by_id(record[0]) for record in cursor.fetchall()]
+
+    def cur_watch_info(self) -> WatchInfo:
         if self.watch is None:
             raise NullWatchError
-        cursor = self.con.execute("SELECT name FROM info WHERE watch_id = ?", (self.watch,))
-        return cursor.fetchone()[0]
+        return self.watch_info_by_id(self.watch)
 
     def change_watch(self, id_: int):
         cursor = self.con.execute(f'SELECT watch_id FROM info WHERE watch_id = ?', (id_,))
@@ -175,6 +192,15 @@ class WatchDB:
         for row in cursor.fetchall():
             table.append(Record(time=dt.datetime.fromisoformat(row[1]), measure=row[2], id=row[0]))
         return WatchLog(table)
+
+
+@dataclass
+class WatchInfo:
+    id: int
+    name: str
+    date_of_joining: dt.datetime
+    cycles: list[int]
+    total_number_of_measures: int
 
 
 class NullWatchError(ValueError):
