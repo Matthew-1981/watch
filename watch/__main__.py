@@ -2,8 +2,9 @@
 import sys
 from pathlib import Path
 import datetime as dt
+import prettytable as pt
 
-from .connector import WatchDB
+from .connector import WatchDB, NullWatchError, QueryError
 from .interpolation.collection import LinearInterpolation
 
 
@@ -72,15 +73,193 @@ def get_default_watch(db: WatchDB) -> int:
     return tmp[0][0]
 
 
+def exec_command(database: WatchDB, inp: str):
+    INTERPOLATION_METHOD = LinearInterpolation
+    match inp.split():
+
+        case ["change", "default", integer]:
+            try:
+                configure_default_watch(database, int(integer))
+            except Exception as e:
+                print(f"Could not change default due to error:\n{e}")
+            else:
+                print(f"default changed to {integer}")
+
+        case ["watches"]:
+            titles = ('watch id', 'name', 'date', 'cycles no.', 'measures no.')
+            dat = database.database_info()
+            table = pt.PrettyTable(titles)
+            table.add_rows([(i.id, i.name, i.date_of_joining, len(i.cycles), i.total_number_of_measures)
+                            for i in dat])
+            print(table)
+
+        case ["change", "watch", watch_id]:
+            if watch_id.isnumeric():
+                watch_id = int(watch_id)
+                try:
+                    database.change_watch(watch_id)
+                except QueryError:
+                    print(f'Error: watch {watch_id} does not exist')
+                else:
+                    print(f'Watch changed to {watch_id}')
+            else:
+                print("Error: watch id has to be an integer")
+
+        case ["change", "cycle", cycle]:
+            try:
+                cycle = int(cycle)
+                database.change_cycle(cycle)
+            except QueryError:
+                print(f'Error: cycle {cycle} does not exist')
+            else:
+                print(f'Cycle changed to {cycle}')
+
+        case ["add", "watch", *name]:
+            try:
+                name = ' '.join(name)
+                database.add_watch(name)
+            except QueryError:
+                print('Error: Unable to add watch')
+            else:
+                print(f'Added watch {name}')
+
+        case ["new", "cycle"]:
+            database.new_cycle()
+
+        case ["measure"]:
+            cursor = database.con.execute(
+                '''
+                SELECT measure
+                FROM logs
+                WHERE watch_id = ?
+                AND cycle = ?
+                ORDER BY timedate DESC
+                ''',
+                (database.watch, database.cycle)
+            )
+            temp = cursor.fetchall()
+            if len(temp) == 0:
+                key = 0
+            else:
+                key = temp[0][0]
+            time = smart_cycle(add=key)
+            inp = None
+            while inp not in ['y', 'n']:
+                inp = input(f'add measure {time}? [y/n] ')
+            if inp == 'y':
+                database.add_measure(time)
+                print('Measure added')
+            else:
+                print('Measure not added')
+
+        case ["manual", "measure", measure]:
+            measure = round(float(measure), 1)
+            database.add_measure(measure)
+
+        case ["del", "watch"]:
+            prompt = None
+            while prompt not in ['y', 'n']:
+                prompt = input(f'Delete watch {database.cur_watch_info().name}? [y/n] ')
+            if prompt == 'y':
+                try:
+                    database.del_current_watch()
+                except QueryError:
+                    print('Error: Unable to delete watch')
+                else:
+                    print(f'watch deleted')
+
+        case ["del", "cycle"]:
+            prompt = None
+            while prompt not in ['y', 'n']:
+                prompt = input(f'Delete cycle {database.cycle}? [y/n] ')
+            if prompt == 'y':
+                try:
+                    tmp = database.cycle
+                    database.del_current_cycle()
+                except QueryError:
+                    print('Error: Unable to delete cycle')
+                else:
+                    print(f'cycle {tmp} deleted')
+
+        case ["del", "measure", measure]:
+            prompt = None
+            while prompt not in ['y', 'n']:
+                prompt = input(f'Delete measure {measure}? [y/n] ')
+            if prompt == 'y':
+                try:
+                    database.del_measure(int(measure))
+                except QueryError:
+                    print(f'Error: Measure {measure} does not exist')
+                else:
+                    print(f'measure {measure} deleted')
+
+        case ["log"]:
+            data = database.data.get_log_with_dif()
+            table = pt.PrettyTable(('log id', 'timedate', 'measure', 'difference'))
+            table.add_rows((log.other['id'], log.time, log.measure, log.other['difference'])
+                           for log in data.data)
+            print(str(table))
+
+        case ["fill"]:
+            data = database.data.fill(INTERPOLATION_METHOD).get_log_with_dif()
+            table = pt.PrettyTable(('timedate', 'measure', 'difference'))
+            table.add_rows((log.time, log.measure, log.other['difference']) for log in data.data)
+            print(str(table))
+
+        case ["stat"]:
+            data = database.data.fill(INTERPOLATION_METHOD)
+            table = pt.PrettyTable(('average', 'deviation', 'delta'))
+            try:
+                table.add_row((data.average,
+                               data.standard_deviation,
+                               data.delta))
+            except (ValueError, ZeroDivisionError):
+                print("Could not produce stats.")
+            else:
+                print(str(table))
+
+        case ["current"]:
+            cursor = database.con.execute(
+                'SELECT DISTINCT cycle FROM logs WHERE watch_id = ?',
+                (database.watch,)
+            )
+            data = [w[0] for w in cursor.fetchall()]
+            cycles = shorten_list(data)
+            table = pt.PrettyTable(('watch id', 'name', 'current cycle', 'all cycles'))
+            table.add_row((database.watch, database.cur_watch_info().name, database.cycle, cycles))
+            print(str(table))
+
+        case ["SQL"]:
+            code = input('SQL> ')
+            try:
+                cursor = database.con.execute(code)
+            except Exception as e:
+                print(e)
+            else:
+                data = cursor.fetchall()
+                if data:
+                    table = pt.PrettyTable()
+                    table.add_rows(data)
+                    print(table)
+
+        case ["exit"]:
+            database.close()
+            exit(0)
+
+        case []:
+            pass
+
+        case _:
+            print("Error: Invalid input")
+
+
 def main():
-    import prettytable as pt
     if len(sys.argv) != 2:
         print("Error: enter sqlite3 database file as the only argument.", file=sys.stderr)
         exit(1)
 
     database_name = Path(sys.argv[1])
     database = WatchDB(str(database_name))
-    INTERPOLATION_METHOD = LinearInterpolation
 
     print("watchDB - watch measurement database")
 
@@ -91,182 +270,15 @@ def main():
         print("Default watch is not configured.")
 
     while True:
-        inp = input(f"{database.get_watch_name()}> ")
-
-        match inp.split():
-
-            case ["change", "default", integer]:
-                try:
-                    configure_default_watch(database, int(integer))
-                except Exception as e:
-                    print(f"Could not change default due to error:\n{e}")
-                else:
-                    print(f"default changed to {integer}")
-
-            case ["watches"]:
-                titles = ('watch id', 'name', 'date', 'cycles no.', 'measures no.')
-                dat = database.database_info()
-                table = pt.PrettyTable(titles)
-                table.add_rows(dat)
-                print(table)
-
-            case ["change", "watch", *watch_id]:
-                watch_id = ' '.join(watch_id)
-                if watch_id.isnumeric():
-                    watch_id = int(watch_id)
-                try:
-                    database.change_watch(watch_id)
-                except ValueError:
-                    print(f'Error: watch {watch_id} does not exist')
-                else:
-                    print(f'Watch changed to {watch_id}')
-
-            case ["change", "cycle", cycle]:
-                try:
-                    cycle = int(cycle)
-                    database.change_cycle(cycle)
-                except ValueError:
-                    print(f'Error: cycle {cycle} does not exist')
-                else:
-                    print(f'Cycle changed to {cycle}')
-
-            case ["add", "watch", *name]:
-                try:
-                    name = ' '.join(name)
-                    database.add_watch(name)
-                except ValueError:
-                    print('Error: Unable to add watch')
-                else:
-                    print(f'Added watch {name}')
-
-            case ["new", "cycle"]:
-                database.new_cycle()
-
-            case ["measure"]:
-                cursor = database.con.execute(
-                    '''
-                    SELECT measure
-                    FROM logs
-                    WHERE watch_id = ?
-                    AND cycle = ?
-                    ORDER BY timedate DESC
-                    ''',
-                    (database.watch, database.cycle)
-                )
-                temp = cursor.fetchall()
-                if len(temp) == 0:
-                    key = 0
-                else:
-                    key = temp[0][0]
-                time = smart_cycle(add=key)
-                inp = None
-                while inp not in ['y', 'n']:
-                    inp = input(f'add measure {time}? [y/n] ')
-                if inp == 'y':
-                    database.add_measure(time)
-                    print('Measure added')
-                else:
-                    print('Measure not added')
-
-            case ["manual", "measure", measure]:
-                measure = round(float(measure), 1)
-                database.add_measure(measure)
-
-            case ["del", "watch"]:
-                prompt = None
-                while prompt not in ['y', 'n']:
-                    prompt = input(f'Delete watch {database.get_watch_name()}? [y/n] ')
-                if prompt == 'y':
-                    try:
-                        database.del_current_watch()
-                    except Exception:
-                        print('Error: Unable to delete watch')
-                    else:
-                        print(f'watch deleted')
-
-            case ["del", "cycle"]:
-                prompt = None
-                while prompt not in ['y', 'n']:
-                    prompt = input(f'Delete cycle {database.cycle}? [y/n] ')
-                if prompt == 'y':
-                    try:
-                        tmp = database.cycle
-                        database.del_current_cycle()
-                    except Exception:
-                        print('Error: Unable to delete cycle')
-                    else:
-                        print(f'cycle {tmp} deleted')
-
-            case ["del", "measure", measure]:
-                prompt = None
-                while prompt not in ['y', 'n']:
-                    prompt = input(f'Delete measure {measure}? [y/n] ')
-                if prompt == 'y':
-                    try:
-                        database.del_measure(int(measure))
-                    except Exception:
-                        print(f'Error: Measure {measure} does not exist')
-                    else:
-                        print(f'measure {measure} deleted')
-
-            case ["log"]:
-                data = database.data.get_log_with_dif()
-                table = pt.PrettyTable(('log id', 'timedate', 'measure', 'difference'))
-                table.add_rows((log.other['id'], log.time, log.measure, log.other['difference'])
-                               for log in data.data)
-                print(str(table))
-
-            case ["fill"]:
-                data = database.data.fill(INTERPOLATION_METHOD).get_log_with_dif()
-                table = pt.PrettyTable(('timedate', 'measure', 'difference'))
-                table.add_rows((log.time, log.measure, log.other['difference']) for log in data.data)
-                print(str(table))
-
-            case ["stat"]:
-                data = database.data.fill(INTERPOLATION_METHOD)
-                table = pt.PrettyTable(('average', 'deviation', 'delta'))
-                try:
-                    table.add_row((data.average,
-                                   data.standard_deviation,
-                                   data.delta))
-                except (ValueError, ZeroDivisionError):
-                    print("Could not produce stats.")
-                else:
-                    print(str(table))
-
-            case ["current"]:
-                cursor = database.con.execute(
-                    'SELECT DISTINCT cycle FROM logs WHERE watch_id = ?',
-                    (database.watch,)
-                )
-                data = [w[0] for w in cursor.fetchall()]
-                cycles = shorten_list(data)
-                table = pt.PrettyTable(('watch id', 'name', 'current cycle', 'all cycles'))
-                table.add_row((database.watch, database.get_watch_name(), database.cycle, cycles))
-                print(str(table))
-
-            case ["SQL"]:
-                code = input('SQL> ')
-                try:
-                    cursor = database.con.execute(code)
-                except Exception as e:
-                    print(e)
-                else:
-                    data = cursor.fetchall()
-                    if data:
-                        table = pt.PrettyTable()
-                        table.add_rows(data)
-                        print(table)
-
-            case ["exit"]:
-                database.close()
-                exit(0)
-
-            case []:
-                pass
-
-            case _:
-                print("Error: Invalid input")
+        try:
+            prompt = database.cur_watch_info().name
+        except NullWatchError:
+            prompt = ""
+        inp = input(f"{prompt}> ")
+        try:
+            exec_command(database, inp)
+        except NullWatchError:
+            print("watch is null")
 
 
 if __name__ == "__main__":
