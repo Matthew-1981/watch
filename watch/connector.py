@@ -58,14 +58,13 @@ class WatchDB:
 
     def get_watch_name(self):
         if self.watch is None:
-            return None
+            raise NullWatchError
         cursor = self.con.execute("SELECT name FROM info WHERE watch_id = ?", (self.watch,))
         return cursor.fetchone()[0]
 
-    def change_watch(self, id_: int | str):
-        column = 'watch_id' if isinstance(id_, int) else 'name'
-        cursor = self.con.execute(f'SELECT watch_id FROM info WHERE %s = ?;' % column, (id_,))
-        count = tuple(cursor.fetchall())
+    def change_watch(self, id_: int):
+        cursor = self.con.execute(f'SELECT watch_id FROM info WHERE watch_id = ?', (id_,))
+        count = cursor.fetchall()
         if len(count) == 1:
             self.watch = count[0][0]
             cursor = self.con.execute('SELECT MAX(cycle) FROM logs WHERE watch_id = ?', (self.watch,))
@@ -75,28 +74,32 @@ class WatchDB:
             else:
                 self.cycle = count
         else:
-            raise ValueError(f"Watch with id {id_} does not exist")
+            raise QueryError(f"Watch with id {id_} does not exist")
 
     def change_cycle(self, cycle_number):
+        if self.watch is None:
+            raise NullWatchError
         cursor = self.con.execute('SELECT COUNT(*) FROM logs WHERE cycle = ?', (cycle_number,))
         count = cursor.fetchone()[0]
         if count > 0:
             self.cycle = cycle_number
         else:
-            raise ValueError(f"Cycle {cycle_number} does not exist")
+            raise QueryError(f"Cycle {cycle_number} does not exist")
 
     def add_watch(self, name: str):
         now = dt.datetime.now()
         out = self.con.execute("SELECT * FROM info WHERE name = ?", (name,))
         if len(out.fetchall()) != 0:
-            raise ValueError("Watch already in database")
-        self.con.execute(
+            raise QueryError("Watch already in database")
+        cursor = self.con.execute(
             '''
             INSERT INTO info (name, date_of_joining)
             VALUES (?, ?);
             ''',
             (name, now)
         )
+        if cursor.rowcount != 1:
+            raise InternalBDError
         self.con.commit()
 
     def new_cycle(self):
@@ -106,13 +109,15 @@ class WatchDB:
 
     def add_measure(self, measure: float):
         now = dt.datetime.now()
-        self.con.execute(
+        cursor = self.con.execute(
             '''
             INSERT INTO logs (watch_id, cycle, timedate, measure)
             VALUES (?, ?, ?, ?)
             ''',
             (self.watch, self.cycle, now, measure)
         )
+        if cursor.rowcount != 1:
+            raise InternalBDError
         self.con.commit()
 
     def del_current_watch(self):
@@ -120,10 +125,12 @@ class WatchDB:
             "DELETE FROM logs WHERE watch_id = ?;",
             (self.watch,)
         )
-        self.con.execute(
+        cursor = self.con.execute(
             "DELETE FROM info WHERE watch_id = ?;",
             (self.watch,)
         )
+        if cursor.rowcount != 1:
+            raise InternalBDError
         self.watch = None
         self.cycle = None
         self.con.commit()
@@ -144,11 +151,13 @@ class WatchDB:
             (log_id, self.cycle, self.watch)
         )
         if cursor.fetchone()[0] == 0:
-            raise ValueError
-        self.con.execute(
+            raise QueryError
+        cursor = self.con.execute(
             'DELETE FROM logs WHERE log_id = ? AND cycle = ? AND watch_id = ?',
             (log_id, self.cycle, self.watch)
         )
+        if cursor.rowcount != 1:
+            raise InternalBDError
         self.con.commit()
 
     @property
@@ -166,3 +175,15 @@ class WatchDB:
         for row in cursor.fetchall():
             table.append(Record(time=dt.datetime.fromisoformat(row[1]), measure=row[2], id=row[0]))
         return WatchLog(table)
+
+
+class NullWatchError(ValueError):
+    pass
+
+
+class QueryError(ValueError):
+    pass
+
+
+class InternalBDError(RuntimeError):
+    pass
