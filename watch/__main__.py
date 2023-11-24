@@ -5,6 +5,7 @@ import datetime as dt
 import prettytable as pt
 
 from .connector import WatchDB, NullWatchError, QueryError
+from .log import Record
 from .interpolation.collection import LinearInterpolation
 
 
@@ -127,21 +128,7 @@ def exec_command(database: WatchDB, inp: str):
             database.new_cycle()
 
         case ["measure"]:
-            cursor = database.con.execute(
-                '''
-                SELECT measure
-                FROM logs
-                WHERE watch_id = ?
-                AND cycle = ?
-                ORDER BY timedate DESC
-                ''',
-                (database.watch, database.cycle)
-            )
-            temp = cursor.fetchall()
-            if len(temp) == 0:
-                key = 0
-            else:
-                key = temp[0][0]
+            key = max(database.data.data, key=lambda x: x.time, default=Record(0.0, 0.0)).measure
             time = smart_cycle(add=key)
             inp = None
             while inp not in ['y', 'n']:
@@ -219,12 +206,7 @@ def exec_command(database: WatchDB, inp: str):
                 print(str(table))
 
         case ["current"]:
-            cursor = database.con.execute(
-                'SELECT DISTINCT cycle FROM logs WHERE watch_id = ?',
-                (database.watch,)
-            )
-            data = [w[0] for w in cursor.fetchall()]
-            cycles = shorten_list(data)
+            cycles = shorten_list(database.cur_watch_info().cycles)
             table = pt.PrettyTable(('watch id', 'name', 'current cycle', 'all cycles'))
             table.add_row((database.watch, database.cur_watch_info().name, database.cycle, cycles))
             print(str(table))
