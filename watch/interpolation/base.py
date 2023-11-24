@@ -4,12 +4,9 @@ from typing import Self
 
 class InterpolationAbstract(ABC):
 
+    @classmethod
     @abstractmethod
-    def __init__(self, data: list[tuple[float, float]]):
-        self.data = data
-
-    @abstractmethod
-    def calculate(self) -> Self:
+    def calculate(cls, data: list[tuple[float, float]]) -> Self:
         ...
 
     @abstractmethod
