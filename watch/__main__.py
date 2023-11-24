@@ -57,21 +57,29 @@ def shorten_list(initial_list):
     return ', '.join(out)
 
 
-def configure_default_watch(db: WatchDB, watch_id: int) -> None:
+def check_settings_table(db: WatchDB):
     tmp = db.con.execute("""SELECT name FROM sqlite_master WHERE type='table'
-                            AND name='def_watch'""").fetchall()
+                            AND name='db_settings'""").fetchall()
     if not tmp:
-        db.con.execute('CREATE TABLE def_watch (watch_id INT PRIMARY KEY)')
-    db.con.execute('DELETE FROM def_watch')
-    db.con.execute('INSERT INTO def_watch VALUES (?)', (watch_id,))
+        db.con.execute('CREATE TABLE db_settings (name VARCHAR(30) UNIQUE, value VARCHAR(30))')
+    tmp = db.con.execute('SELECT * FROM db_settings WHERE name = ?', ("default_watch",))
+    if len(tmp.fetchall()) == 0:
+        db.con.execute('INSERT INTO db_settings VALUES (?, NULL)', ("default_watch",))
+        db.con.commit()
+
+
+def configure_default_watch(db: WatchDB, watch_id: int) -> None:
+    check_settings_table(db)
+    db.con.execute('UPDATE db_settings SET value = ? WHERE name = ?', (str(watch_id), "default_watch"))
     db.con.commit()
 
 
-def get_default_watch(db: WatchDB) -> int:
-    tmp = db.con.execute("SELECT watch_id FROM def_watch").fetchall()
-    if len(tmp) > 1:
-        raise ValueError("More than one entry in def_watch")
-    return tmp[0][0]
+def get_default_watch(db: WatchDB) -> int | None:
+    check_settings_table(db)
+    tmp = db.con.execute("SELECT value FROM db_settings WHERE name = ?", ("default_watch",)).fetchall()
+    if len(tmp) == 0 or tmp[0][0] is None:
+        raise ValueError("No watch configured")
+    return int(tmp[0][0])
 
 
 def exec_command(database: WatchDB, inp: str):
