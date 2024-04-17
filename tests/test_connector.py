@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 
-from watch.connector import WatchDB, QueryError, NullWatchError
+from app.watch.connector import WatchDB, QueryError, NullWatchError
 
 
 class ConnectorTest(unittest.TestCase):
