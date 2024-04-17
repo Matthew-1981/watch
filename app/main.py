@@ -11,3 +11,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get('/')
 def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get('/login')
+def login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get('/register')
+def register(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
