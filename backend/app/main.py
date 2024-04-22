@@ -1,23 +1,24 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.templating import Jinja2Templates
-from starlette.staticfiles import StaticFiles
-
+from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-@app.get('/')
-def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+origins = [
+    "http://localhost:3000",
+    "localhost:3000"
+]
 
 
-@app.get('/login')
-def login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 
-@app.get('/register')
-def register(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+@app.get('/watchlist')
+def test(request: Request):
+    return [{'id': 1, 'name': 'test'}, {'id': 2, 'name': 'test2'}]
