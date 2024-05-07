@@ -2,28 +2,22 @@ import React, { useEffect, useState } from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
 import { BACKEND_URL } from './settings';
 import axios from "axios";
-import useGlobalState, { createGlobalState } from "./globalstate";
 
-let current_watch_global= createGlobalState(null);
-let current_cycle_global= createGlobalState(null);
-
-function TopLine() {
-    let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
+function TopLine({global_watch, set_global_watch}) {
 
     // const tmp = (current_watch ? (<CycleSelectList />) : (<div></div>))
 
     return (
       <nav className="navbar navbar-expand-lg navbar-light bg-light">
         <a className="navbar-brand" href="#">Watch tracking</a>
-        <WatchSelectList />
+        <WatchSelectList global_watch={global_watch} set_global_watch={set_global_watch} />
         {/*{tmp}*/}
       </nav>
     )
 }
 
-function WatchSelectList() {
+function WatchSelectList({global_watch, set_global_watch}) {
   const [data, setData] = useState([]);
-  let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
 
   useEffect(() => {
     axios.get(BACKEND_URL + '/watchlist')
@@ -39,12 +33,14 @@ function WatchSelectList() {
     <nav className="navbar navbar-expand-lg navbar-light bg-light">
       <Dropdown>
         <Dropdown.Toggle variant="success" id="dropdown-basic">
-          {current_watch ? current_watch.name : "Select a watch"}
+          {global_watch.watch ? global_watch.watch.name : "Select a watch"}
         </Dropdown.Toggle>
 
         <Dropdown.Menu>
           {data.map(item => (
-            <WatchSelector watch={item} />
+            <WatchSelector watch={item}
+                           global_watch={global_watch}
+                           set_global_watch={set_global_watch} />
           ))}
         </Dropdown.Menu>
       </Dropdown>
@@ -52,14 +48,10 @@ function WatchSelectList() {
   );
 }
 
-function WatchSelector({watch}) {
-    let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
-    let [current_cycle, use_current_cycle] = useGlobalState(current_cycle_global);
-
+function WatchSelector({watch, global_watch, set_global_watch}) {
     const handleClick = () => {
-      use_current_watch(watch);
       const max_cycle= Math.max(...watch.cycles);
-      use_current_cycle(max_cycle);
+      set_global_watch({watch: watch, cycle: max_cycle});
     }
 
   return (
@@ -109,10 +101,9 @@ function WatchSelector({watch}) {
 
 // ========================================
 
-function Content() {
-    let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
+function Content({global_watch, set_global_watch}) {
 
-    if (!current_watch) {
+    if (!global_watch.watch) {
         return (
             <div className="vh-100 d-flex justify-content-center align-items-center">
                 <div className="display-4">Please select a watch</div>
@@ -126,8 +117,12 @@ function Content() {
                 <table style={{width: '100%'}}>
                     <tbody>
                     <tr>
-                        <td style={{width: '50%', paddingRight: '20px'}}><MeasurementList/></td>
-                        <td><div style={{width: '100px', height: '100px', backgroundColor: 'red'}}></div></td>
+                        <td style={{width: '50%', paddingRight: '20px'}}>
+                            <MeasurementList global_watch={global_watch} set_global_watch={set_global_watch}/>
+                        </td>
+                        <td>
+                            <div style={{width: '100px', height: '100px', backgroundColor: 'red'}}></div>
+                        </td>
                     </tr>
                     </tbody>
                 </table>
@@ -136,25 +131,23 @@ function Content() {
     );
 }
 
-function MeasurementList() {
-    let [current_cycle, use_current_cycle] = useGlobalState(current_cycle_global);
-    let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
+function MeasurementList({global_watch, set_global_watch}) {
     const [data, setData] = useState(null);
 
     useEffect(() => {
-        axios.get(BACKEND_URL + '/watch/' + current_watch.id + '/' + current_cycle + '/measurements')
+        axios.get(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurements')
             .then(response => {
                 setData(response.data)
             })
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [current_watch, current_cycle]);
+    }, [global_watch])
 
     const handleDelete = ({measurement_id}) => {
-        axios.delete(BACKEND_URL + '/watch/' + current_watch.id + '/' + current_cycle + '/measurement/' + measurement_id)
+        axios.delete(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurement/' + measurement_id)
             .then(response => {
-                axios.get(BACKEND_URL + '/watch/' + current_watch.id + '/' + current_cycle + '/measurements')
+                axios.get(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurements')
                     .then(response => {
                         setData(response.data)
                     })
@@ -196,5 +189,14 @@ function MeasurementList() {
 // ========================================
 
 export default function App() {
-  return (<div><TopLine/><div style={{padding: '10px'}}><Content/></div></div>)
+    let [global_watch, set_global_watch] = useState({watch: null, cycle: null})
+
+    return (
+        <div>
+            <TopLine global_watch={global_watch} set_global_watch={set_global_watch}/>
+            <div style={{padding: '10px'}}>
+                <Content global_watch={global_watch} set_global_watch={set_global_watch}/>
+            </div>
+        </div>
+    )
 }
