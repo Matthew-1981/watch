@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
 import { BACKEND_URL } from './settings';
-import { BackendApi } from "./backendapi";
 import axios from "axios";
 import useGlobalState, { createGlobalState } from "./globalstate";
 
-const backendApi = new BackendApi(BACKEND_URL);
 let current_watch_global= createGlobalState(null);
 let current_cycle_global= createGlobalState(null);
+
+function TopLine() {
+return (
+  <nav className="navbar navbar-expand-lg navbar-light bg-light">
+    <a className="navbar-brand" href="#">Watch tracking</a>
+    <WatchSelectList />
+  </nav>
+)
+}
 
 function WatchSelectList() {
   const [data, setData] = useState([]);
@@ -57,18 +64,10 @@ function WatchSelector({watch}) {
   );
 }
 
-function TopLine() {
-return (
-  <nav className="navbar navbar-expand-lg navbar-light bg-light">
-    <a className="navbar-brand" href="#">Watch tracking</a>
-    <WatchSelectList />
-  </nav>
-)
-}
+// ========================================
 
 function Content() {
     let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
-    let [current_cycle, use_current_cycle] = useGlobalState(current_cycle_global);
 
     if (!current_watch) {
         return <div>Please select a watch</div>;
