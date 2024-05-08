@@ -28,4 +28,4 @@ def test(request: Request):
 def measurements(request: Request, id: int, cycle: int):
     xd = 12 if id == 1 else 13
     return [{'id': 0, 'datetime': '2021-01-01 12:00:00', 'value': 1.0, 'diff': None},
-            {'id': 1, 'datetime': '2021-01-01 12:00:01', 'value': xd, 'diff': 0.1}]
+            *([{'id': 1, 'datetime': '2021-01-01 12:00:01', 'value': xd, 'diff': 0.1}] * 20)]

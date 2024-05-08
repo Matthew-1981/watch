@@ -1,109 +1,138 @@
-import React, { useEffect, useState } from "react";
+import React, {useEffect, useState} from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
-import { BACKEND_URL } from './settings';
+import {BACKEND_URL} from './settings';
 import axios from "axios";
 
-function TopLine({global_watch, set_global_watch}) {
-
-    // const tmp = (current_watch ? (<CycleSelectList />) : (<div></div>))
+export default function App() {
+    let [global_watch, set_global_watch] = useState(null)
+    let [global_cycle, set_global_cycle] = useState(null)
 
     return (
-      <nav className="navbar navbar-expand-lg navbar-light bg-light">
-        <a className="navbar-brand" href="#">Watch tracking</a>
-        <WatchSelectList global_watch={global_watch} set_global_watch={set_global_watch} />
-        {/*{tmp}*/}
-      </nav>
+        <div>
+            <TopLine global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
+                     set_global_cycle={set_global_cycle}/>
+            <div style={{padding: '10px'}}>
+                {<Content global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
+                          set_global_cycle={set_global_cycle}/>}
+            </div>
+        </div>
     )
 }
 
-function WatchSelectList({global_watch, set_global_watch}) {
-  const [data, setData] = useState([]);
+// ========================================
 
-  useEffect(() => {
-    axios.get(BACKEND_URL + '/watchlist')
-      .then(response => {
-        setData(response.data);
-      })
-      .catch(error => {
-        console.error('Error fetching data:', error);
-      });
-  }, []);
+function TopLine({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
 
-  return (
-    <nav className="navbar navbar-expand-lg navbar-light bg-light">
-      <Dropdown>
-        <Dropdown.Toggle variant="success" id="dropdown-basic">
-          {global_watch.watch ? global_watch.watch.name : "Select a watch"}
-        </Dropdown.Toggle>
+    const tmp = (global_watch ? (<CycleSelectList global_watch={global_watch}
+                                                  set_global_watch={set_global_watch}
+                                                  global_cycle={global_cycle}
+                                                  set_global_cycle={set_global_cycle}/>) : (<div></div>))
 
-        <Dropdown.Menu>
-          {data.map(item => (
-            <WatchSelector watch={item}
-                           global_watch={global_watch}
-                           set_global_watch={set_global_watch} />
-          ))}
-        </Dropdown.Menu>
-      </Dropdown>
-    </nav>
-  );
+    return (
+        <nav className="navbar navbar-expand-lg navbar-light bg-light">
+            <a className="navbar-brand" href="#">Watch tracking</a>
+            <WatchSelectList global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
+                             set_global_cycle={set_global_cycle}/>
+            {tmp}
+        </nav>
+    )
 }
 
-function WatchSelector({watch, global_watch, set_global_watch}) {
+function WatchSelectList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+    const [data, setData] = useState([]);
+
+    useEffect(() => {
+        axios.get(BACKEND_URL + '/watchlist')
+            .then(response => {
+                setData(response.data);
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+            });
+    }, []);
+
+    return (
+        <nav className="navbar navbar-expand-lg navbar-light bg-light">
+            <Dropdown>
+                <Dropdown.Toggle variant="success" id="dropdown-basic">
+                    {global_watch ? global_watch.name : "Select a watch"}
+                </Dropdown.Toggle>
+
+                <Dropdown.Menu>
+                    {data.map(item => (
+                        <WatchSelector watch={item}
+                                       global_watch={global_watch}
+                                       set_global_watch={set_global_watch}
+                                       global_cycle={global_cycle}
+                                       set_global_cycle={set_global_cycle}/>
+                    ))}
+                </Dropdown.Menu>
+            </Dropdown>
+        </nav>
+    );
+}
+
+function WatchSelector({watch, global_watch, set_global_watch, global_cycle, set_global_cycle}) {
     const handleClick = () => {
-      const max_cycle= Math.max(...watch.cycles);
-      set_global_watch({watch: watch, cycle: max_cycle});
+        set_global_watch(watch)
+        const max_cycle = Math.max(...watch.cycles);
+        set_global_cycle(max_cycle);
     }
 
-  return (
-    <Dropdown.Item onClick={handleClick}>
-      {watch.name}
-    </Dropdown.Item>
-  );
+    return (
+        <Dropdown.Item onClick={handleClick}>
+            {watch.name}
+        </Dropdown.Item>
+    );
 }
-//
-// function CycleSelectList() {
-//   const [data, setData] = useState([]);
-//   let [current_watch, use_current_watch] = useGlobalState(current_watch_global);
-//   let [current_cycle, use_current_cycle] = useGlobalState(current_cycle_global);
-//
-//   const cycles = [...current_watch.cycles]
-//   setData(cycles.sort())
-//
-//   return (
-//     <nav className="navbar navbar-expand-lg navbar-light bg-light">
-//       <Dropdown>
-//         <Dropdown.Toggle variant="success" id="dropdown-basic">
-//           {current_cycle}
-//         </Dropdown.Toggle>
-//           <Dropdown.Menu>
-//               {data.map(item => (
-//                 <CycleSelector cycle={item} />
-//               ))}
-//         </Dropdown.Menu>
-//       </Dropdown>
-//     </nav>
-//   );
-// }
-//
-// function CycleSelector({cycle}) {
-//     let [current_cycle, use_current_cycle] = useGlobalState(current_cycle_global);
-//
-//     const handleClick = () => {
-//       use_current_cycle(cycle);
-//     }
-//
-//   return (
-//     <Dropdown.Item onClick={handleClick}>
-//       {cycle}
-//     </Dropdown.Item>
-//   );
-// }
+
+function CycleSelectList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+    const [data, setData] = useState([]);
+
+    useEffect(() => {
+        const tmp = global_watch.cycles
+        tmp.sort()
+        setData(tmp)
+    })
+
+    return (
+        <nav className="navbar navbar-expand-lg navbar-light bg-light" style={{marginLeft: '15px'}}>
+            <Dropdown>
+                <Dropdown.Toggle variant="success" id="dropdown-basic">
+                    {global_cycle ? global_cycle : "Select cycle"}
+                </Dropdown.Toggle>
+
+                <Dropdown.Menu>
+                    {data.map(item => (
+                        <CycleSelector cycle={item}
+                                       global_watch={global_watch}
+                                       set_global_watch={set_global_watch}
+                                       global_cycle={global_cycle}
+                                       set_global_cycle={set_global_cycle}/>
+                    ))}
+                </Dropdown.Menu>
+            </Dropdown>
+        </nav>
+    );
+}
+
+function CycleSelector({cycle, global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+    const handleClick = () => {
+        set_global_cycle(cycle)
+    }
+
+    return (
+        <Dropdown.Item onClick={handleClick}>
+            {cycle}
+        </Dropdown.Item>
+    );
+}
 
 // ========================================
 
-function Content({global_watch, set_global_watch}) {
+function Content({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
 
-    if (!global_watch.watch) {
+    if (!global_watch) {
         return (
             <div className="vh-100 d-flex justify-content-center align-items-center">
                 <div className="display-4">Please select a watch</div>
@@ -118,7 +147,10 @@ function Content({global_watch, set_global_watch}) {
                     <tbody>
                     <tr>
                         <td style={{width: '50%', paddingRight: '20px'}}>
-                            <MeasurementList global_watch={global_watch} set_global_watch={set_global_watch}/>
+                            <MeasurementList global_watch={global_watch}
+                                             set_global_watch={set_global_watch}
+                                             global_cycle={global_cycle}
+                                             set_global_cycle={set_global_cycle}/>
                         </td>
                         <td>
                             <div style={{width: '100px', height: '100px', backgroundColor: 'red'}}></div>
@@ -131,23 +163,23 @@ function Content({global_watch, set_global_watch}) {
     );
 }
 
-function MeasurementList({global_watch, set_global_watch}) {
+function MeasurementList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
     const [data, setData] = useState(null);
 
     useEffect(() => {
-        axios.get(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurements')
+        axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
             .then(response => {
                 setData(response.data)
             })
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [global_watch])
+    }, [global_watch, global_cycle])
 
     const handleDelete = ({measurement_id}) => {
-        axios.delete(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurement/' + measurement_id)
+        axios.delete(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurement/' + measurement_id)
             .then(response => {
-                axios.get(BACKEND_URL + '/watch/' + global_watch.watch.id + '/' + global_watch.cycle + '/measurements')
+                axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
                     .then(response => {
                         setData(response.data)
                     })
@@ -160,43 +192,68 @@ function MeasurementList({global_watch, set_global_watch}) {
             });
     }
 
+    const handleCreate = ({datetime, value}) => {
+        const str_datetime = datetime.toISOString().slice(0, 19).replace('T', ' ')
+        axios.post(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurement', {
+            datetime: str_datetime,
+            value: value
+        })
+            .then(response => {
+                axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
+                    .then(response => {
+                        setData(response.data)
+                    })
+                    .catch(error => {
+                        console.error('Error fetching data:', error);
+                    });
+            })
+            .catch(error => {
+                console.error('Error creating data:', error);
+            });
+    }
+
     return (
-        <div style={{ maxHeight: '300px', overflow: 'auto' }}>
-            <table className="table">
-                <thead>
+        <div>
+            <div style={{maxHeight: '80vh', overflow: 'auto'}}>
+                <table className="table">
+                    <thead>
                     <tr>
                         <th>Time Stamp</th>
                         <th>Measure</th>
                         <th>Delta</th>
                         <th></th>
                     </tr>
-                </thead>
-                <tbody>
+                    </thead>
+                    <tbody>
                     {data && data.map((item, index) => (
                         <tr key={index}>
                             <td>{item.datetime}</td>
                             <td>{item.value}</td>
                             <td>{item.diff}</td>
-                            <td><button onClick={() => handleDelete({measurement_id: item.id})}>Delete</button></td>
+                            <td>
+                                <button onClick={() => handleDelete({measurement_id: item.id})}>Delete</button>
+                            </td>
                         </tr>
                     ))}
+                    </tbody>
+                </table>
+            </div>
+            <table>
+                <tbody>
+                <tr>
+                    <td>
+                        <input type="number" id="value"/>
+                    </td>
+                    <td>
+                        <button onClick={() => handleCreate({
+                            datetime: new Date(),
+                            value: document.getElementById('value').value
+                        })}>Create
+                        </button>
+                    </td>
+                </tr>
                 </tbody>
             </table>
         </div>
     );
-}
-
-// ========================================
-
-export default function App() {
-    let [global_watch, set_global_watch] = useState({watch: null, cycle: null})
-
-    return (
-        <div>
-            <TopLine global_watch={global_watch} set_global_watch={set_global_watch}/>
-            <div style={{padding: '10px'}}>
-                <Content global_watch={global_watch} set_global_watch={set_global_watch}/>
-            </div>
-        </div>
-    )
 }
