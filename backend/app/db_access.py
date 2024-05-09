@@ -2,15 +2,6 @@ import asyncio
 import sqlite3 as sl3
 
 
-class DBAccess:
-
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-
-    def access(self):
-        return DBContext(self.db_path)
-
-
 class DBContext:
 
     def __init__(self, db_path: str):
@@ -27,4 +18,12 @@ class DBContext:
         self.lock.release()
         if exc_type:
             raise exc_value.with_traceback(traceback)
-        return True
+
+
+class DBAccess:
+
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+
+    def access(self) -> DBContext:
+        return DBContext(self.db_path)
