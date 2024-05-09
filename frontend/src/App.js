@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
+import Modal from 'react-bootstrap/Modal';
 import {BACKEND_URL} from './settings';
 import axios from "axios";
 
@@ -40,6 +41,7 @@ function TopLine({global_watch, set_global_watch, global_cycle, set_global_cycle
 
 function WatchSelectList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
     const [data, setData] = useState([]);
+    const [showAddWatchMenu, setShowAddWatchMenu] = useState(false); // Add this line
 
     useEffect(() => {
         axios.get(BACKEND_URL + '/watchlist')
@@ -49,7 +51,7 @@ function WatchSelectList({global_watch, set_global_watch, global_cycle, set_glob
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, []);
+    }, [showAddWatchMenu]);
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
@@ -66,16 +68,53 @@ function WatchSelectList({global_watch, set_global_watch, global_cycle, set_glob
                                        global_cycle={global_cycle}
                                        set_global_cycle={set_global_cycle}/>
                     ))}
+                    <Dropdown.Divider/>
+                    <Dropdown.Item onClick={() => setShowAddWatchMenu(true)}>
+                        Add new watch
+                    </Dropdown.Item>
                 </Dropdown.Menu>
             </Dropdown>
+            {showAddWatchMenu && <AddWatchMenu global_watch={global_watch} set_global_watch={set_global_watch}
+                                               showAddWatchMenu={showAddWatchMenu}
+                                               setShowAddWatchMenu={setShowAddWatchMenu}/>}
         </nav>
     );
+}
+
+function AddWatchMenu({global_watch, set_global_watch, showAddWatchMenu, setShowAddWatchMenu}) {
+
+    const addWatch = ({watch_name}) => {
+        axios.post(BACKEND_URL + '/watchlist', {name: watch_name})
+            .then()
+            .catch(error => {
+                console.error('Error creating data:', error);
+            })
+    }
+
+    return (
+        <Modal show={showAddWatchMenu} onHide={() => setShowAddWatchMenu(false)}>
+            <Modal.Header closeButton>
+                <Modal.Title>Add Watch</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <input type="text" id="watch_name"/>
+            </Modal.Body>
+            <Modal.Footer>
+                <button onClick={() => {
+                    addWatch({watch_name: document.getElementById('watch_name').value})
+                    setShowAddWatchMenu(false)
+                }}>
+                    Add watch
+                </button>
+            </Modal.Footer>
+        </Modal>
+    )
 }
 
 function WatchSelector({watch, global_watch, set_global_watch, global_cycle, set_global_cycle}) {
     const handleClick = () => {
         set_global_watch(watch)
-        const max_cycle = Math.max(...watch.cycles);
+        const max_cycle = (watch.cycles.length > 0 ? Math.max(...watch.cycles) : 0)
         set_global_cycle(max_cycle);
     }
 
@@ -90,16 +129,26 @@ function CycleSelectList({global_watch, set_global_watch, global_cycle, set_glob
     const [data, setData] = useState([]);
 
     useEffect(() => {
-        const tmp = global_watch.cycles
+        let tmp = global_watch.cycles
+        if (tmp.length === 0)
+            tmp = [0]
         tmp.sort((a, b) => parseFloat(a) - parseFloat(b));
         setData(tmp)
-    })
+    }, [global_watch, set_global_cycle])
+
+    const onClickCreateNewCycle = () => {
+        let new_cycle = 0
+        if (data.length > 0)
+            new_cycle = Math.max(...data) + 1
+        set_global_cycle(new_cycle)
+        global_watch.cycles.push(new_cycle)
+    }
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light" style={{marginLeft: '15px'}}>
             <Dropdown>
                 <Dropdown.Toggle variant="success" id="dropdown-basic">
-                    {global_cycle ? global_cycle : "Select cycle"}
+                    {global_cycle !== null ? global_cycle : "Select cycle"}
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu>
@@ -110,6 +159,10 @@ function CycleSelectList({global_watch, set_global_watch, global_cycle, set_glob
                                        global_cycle={global_cycle}
                                        set_global_cycle={set_global_cycle}/>
                     ))}
+                    <Dropdown.Divider/>
+                    <Dropdown.Item onClick={onClickCreateNewCycle}>
+                        Create new cycle
+                    </Dropdown.Item>
                 </Dropdown.Menu>
             </Dropdown>
         </nav>
@@ -177,9 +230,9 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
     }, [global_watch, global_cycle])
 
     const handleDelete = ({measurement_id}) => {
-        axios.delete(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurement/' + measurement_id)
+        axios.delete(BACKEND_URL + '/measurements/' + measurement_id)
             .then(response => {
-                axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
+                axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
                     .then(response => {
                         setData(response.data)
                     })
@@ -194,12 +247,12 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
 
     const handleCreate = ({datetime, value}) => {
         const str_datetime = datetime.toISOString().slice(0, 19).replace('T', ' ')
-        axios.post(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurement', {
+        axios.post(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle, {
             datetime: str_datetime,
-            value: value
+            measure: parseFloat(value)
         })
             .then(response => {
-                axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
+                axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
                     .then(response => {
                         setData(response.data)
                     })
@@ -231,7 +284,7 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
                             <td>{item.measure}</td>
                             <td>{item.difference}</td>
                             <td>
-                                <button onClick={() => handleDelete({measurement_id: item.id})}>Delete</button>
+                                <button onClick={() => handleDelete({measurement_id: item.log_id})}>Delete</button>
                             </td>
                         </tr>
                     ))}
