@@ -1,7 +1,13 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
 
+from settings import DATABASE_PATH
+from .utils import convert_table
+from .db_access import DBAccess
+from .watch.log import WatchLogFrame
+
 app = FastAPI()
+db = DBAccess(DATABASE_PATH)
 
 
 origins = [
@@ -20,12 +26,26 @@ app.add_middleware(
 
 
 @app.get('/watchlist')
-def test(request: Request):
-    return [{'id': 1, 'name': 'test', 'cycles': [1, 2, 3]}, {'id': 2, 'name': 'test2', 'cycles': [4, 5, 6]}]
+async def watchlist(request: Request):
+    async with db.access() as conn:
+        watches = conn.execute('SELECT watch_id, name FROM info').fetchall()
+        watches = convert_table(('id', 'name'), watches)
+        for watch in watches:
+            watch['cycles'] = conn.execute('SELECT DISTINCT cycle FROM logs WHERE watch_id = ?', (watch['id'],)).fetchall()
+    return watches
 
 
-@app.get('/watch/{id}/{cycle}/measurements')
-def measurements(request: Request, id: int, cycle: int):
-    xd = 12 if id == 1 else 13
-    return [{'id': 0, 'datetime': '2021-01-01 12:00:00', 'value': 1.0, 'diff': None},
-            *([{'id': 1, 'datetime': '2021-01-01 12:00:01', 'value': xd, 'diff': 0.1}] * 20)]
+@app.get('/measurements/{watch_id}/{cycle}')
+async def measurements(request: Request, watch_id: int, cycle: int):
+    async with db.access() as conn:
+        table = conn.execute(
+            '''
+            SELECT log_id, timedate, measure
+            FROM logs
+            WHERE watch_id = ? AND cycle = ?
+            ORDER BY timedate;
+            ''',
+            (watch_id, cycle)
+        ).fetchall()
+    frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
+    return frame.data

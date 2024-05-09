@@ -91,7 +91,7 @@ function CycleSelectList({global_watch, set_global_watch, global_cycle, set_glob
 
     useEffect(() => {
         const tmp = global_watch.cycles
-        tmp.sort()
+        tmp.sort((a, b) => parseFloat(a) - parseFloat(b));
         setData(tmp)
     })
 
@@ -167,7 +167,7 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
     const [data, setData] = useState(null);
 
     useEffect(() => {
-        axios.get(BACKEND_URL + '/watch/' + global_watch.id + '/' + global_cycle + '/measurements')
+        axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
             .then(response => {
                 setData(response.data)
             })
@@ -228,8 +228,8 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
                     {data && data.map((item, index) => (
                         <tr key={index}>
                             <td>{item.datetime}</td>
-                            <td>{item.value}</td>
-                            <td>{item.diff}</td>
+                            <td>{item.measure}</td>
+                            <td>{item.difference}</td>
                             <td>
                                 <button onClick={() => handleDelete({measurement_id: item.id})}>Delete</button>
                             </td>

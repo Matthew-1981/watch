@@ -1,5 +1,5 @@
 from app.main import app
-import settings
+from backend import settings
 
 if __name__ == "__main__":
     import uvicorn
