@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
 
-from settings import DATABASE_PATH
+import settings
 from .utils import convert_table
 from .db_access import DBAccess
 from .watch.log import WatchLogFrame
 
 app = FastAPI()
-db = DBAccess(DATABASE_PATH)
+db = DBAccess(settings.DATABASE_PATH)
 
 
 origins = [
