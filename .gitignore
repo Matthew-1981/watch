@@ -1,4 +1,2 @@
 .idea
 .DS_Store
-__pycache__
-test.sqlite3
