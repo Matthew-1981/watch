@@ -8,13 +8,18 @@ export default function App() {
     let [global_watch, set_global_watch] = useState(null)
     let [global_cycle, set_global_cycle] = useState(null)
 
+    let global_state = {
+        global_watch: global_watch,
+        set_global_watch: set_global_watch,
+        global_cycle: global_cycle,
+        set_global_cycle: set_global_cycle
+    }
+
     return (
         <div>
-            <TopLine global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
-                     set_global_cycle={set_global_cycle}/>
+            <TopLine global_state={global_state}/>
             <div style={{padding: '10px'}}>
-                {<Content global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
-                          set_global_cycle={set_global_cycle}/>}
+                {<Content global_state={global_state}/>}
             </div>
         </div>
     )
@@ -22,26 +27,22 @@ export default function App() {
 
 // ========================================
 
-function TopLine({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function TopLine({global_state}) {
 
-    const tmp = (global_watch ? (<CycleSelectList global_watch={global_watch}
-                                                  set_global_watch={set_global_watch}
-                                                  global_cycle={global_cycle}
-                                                  set_global_cycle={set_global_cycle}/>) : (<div></div>))
+    const tmp = (global_state.global_watch ? (<CycleSelectList global_state={global_state} />) : (<div></div>))
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
             <a className="navbar-brand" href="#">Watch tracking</a>
-            <WatchSelectList global_watch={global_watch} set_global_watch={set_global_watch} global_cycle={global_cycle}
-                             set_global_cycle={set_global_cycle}/>
+            <WatchSelectList global_state={global_state} />
             {tmp}
         </nav>
     )
 }
 
-function WatchSelectList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function WatchSelectList({global_state}) {
     const [data, setData] = useState([]);
-    const [showAddWatchMenu, setShowAddWatchMenu] = useState(false); // Add this line
+    const [showAddWatchMenu, setShowAddWatchMenu] = useState(false);
 
     useEffect(() => {
         axios.get(BACKEND_URL + '/watchlist')
@@ -57,16 +58,13 @@ function WatchSelectList({global_watch, set_global_watch, global_cycle, set_glob
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
             <Dropdown>
                 <Dropdown.Toggle variant="success" id="dropdown-basic">
-                    {global_watch ? global_watch.name : "Select a watch"}
+                    {global_state.global_watch ? global_state.global_watch.name : "Select a watch"}
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu>
                     {data.map(item => (
                         <WatchSelector watch={item}
-                                       global_watch={global_watch}
-                                       set_global_watch={set_global_watch}
-                                       global_cycle={global_cycle}
-                                       set_global_cycle={set_global_cycle}/>
+                                       global_state={global_state} />
                     ))}
                     <Dropdown.Divider/>
                     <Dropdown.Item onClick={() => setShowAddWatchMenu(true)}>
@@ -74,14 +72,14 @@ function WatchSelectList({global_watch, set_global_watch, global_cycle, set_glob
                     </Dropdown.Item>
                 </Dropdown.Menu>
             </Dropdown>
-            {showAddWatchMenu && <AddWatchMenu global_watch={global_watch} set_global_watch={set_global_watch}
+            {showAddWatchMenu && <AddWatchMenu global_state={global_state}
                                                showAddWatchMenu={showAddWatchMenu}
                                                setShowAddWatchMenu={setShowAddWatchMenu}/>}
         </nav>
     );
 }
 
-function AddWatchMenu({global_watch, set_global_watch, showAddWatchMenu, setShowAddWatchMenu}) {
+function AddWatchMenu({global_state, showAddWatchMenu, setShowAddWatchMenu}) {
 
     const addWatch = ({watch_name}) => {
         axios.post(BACKEND_URL + '/watchlist', {name: watch_name})
@@ -111,11 +109,11 @@ function AddWatchMenu({global_watch, set_global_watch, showAddWatchMenu, setShow
     )
 }
 
-function WatchSelector({watch, global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function WatchSelector({watch, global_state}) {
     const handleClick = () => {
-        set_global_watch(watch)
+        global_state.set_global_watch(watch)
         const max_cycle = (watch.cycles.length > 0 ? Math.max(...watch.cycles) : 0)
-        set_global_cycle(max_cycle);
+        global_state.set_global_cycle(max_cycle);
     }
 
     return (
@@ -125,39 +123,35 @@ function WatchSelector({watch, global_watch, set_global_watch, global_cycle, set
     );
 }
 
-function CycleSelectList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function CycleSelectList({global_state}) {
     const [data, setData] = useState([]);
 
     useEffect(() => {
-        let tmp = global_watch.cycles
+        let tmp = global_state.global_watch.cycles
         if (tmp.length === 0)
             tmp = [0]
         tmp.sort((a, b) => parseFloat(a) - parseFloat(b));
         setData(tmp)
-    }, [global_watch, set_global_cycle])
+    }, [global_state.global_watch, global_state.set_global_cycle])
 
     const onClickCreateNewCycle = () => {
         let new_cycle = 0
         if (data.length > 0)
             new_cycle = Math.max(...data) + 1
-        set_global_cycle(new_cycle)
-        global_watch.cycles.push(new_cycle)
+        global_state.set_global_cycle(new_cycle)
+        global_state.global_watch.cycles.push(new_cycle)
     }
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light" style={{marginLeft: '15px'}}>
             <Dropdown>
                 <Dropdown.Toggle variant="success" id="dropdown-basic">
-                    {global_cycle !== null ? global_cycle : "Select cycle"}
+                    {global_state.global_cycle !== null ? global_state.global_cycle : "Select cycle"}
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu>
                     {data.map(item => (
-                        <CycleSelector cycle={item}
-                                       global_watch={global_watch}
-                                       set_global_watch={set_global_watch}
-                                       global_cycle={global_cycle}
-                                       set_global_cycle={set_global_cycle}/>
+                        <CycleSelector cycle={item} global_state={global_state} />
                     ))}
                     <Dropdown.Divider/>
                     <Dropdown.Item onClick={onClickCreateNewCycle}>
@@ -169,9 +163,9 @@ function CycleSelectList({global_watch, set_global_watch, global_cycle, set_glob
     );
 }
 
-function CycleSelector({cycle, global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function CycleSelector({cycle, global_state}) {
     const handleClick = () => {
-        set_global_cycle(cycle)
+        global_state.set_global_cycle(cycle)
     }
 
     return (
@@ -183,9 +177,9 @@ function CycleSelector({cycle, global_watch, set_global_watch, global_cycle, set
 
 // ========================================
 
-function Content({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function Content({global_state}) {
 
-    if (!global_watch) {
+    if (!global_state.global_watch) {
         return (
             <div className="vh-100 d-flex justify-content-center align-items-center">
                 <div className="display-4">Please select a watch</div>
@@ -200,10 +194,7 @@ function Content({global_watch, set_global_watch, global_cycle, set_global_cycle
                     <tbody>
                     <tr>
                         <td style={{width: '50%', paddingRight: '20px'}}>
-                            <MeasurementList global_watch={global_watch}
-                                             set_global_watch={set_global_watch}
-                                             global_cycle={global_cycle}
-                                             set_global_cycle={set_global_cycle}/>
+                            <MeasurementList global_state={global_state} />
                         </td>
                         <td>
                             <div style={{width: '100px', height: '100px', backgroundColor: 'red'}}></div>
@@ -216,23 +207,23 @@ function Content({global_watch, set_global_watch, global_cycle, set_global_cycle
     );
 }
 
-function MeasurementList({global_watch, set_global_watch, global_cycle, set_global_cycle}) {
+function MeasurementList({global_state}) {
     const [data, setData] = useState(null);
 
     useEffect(() => {
-        axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
+        axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
             .then(response => {
                 setData(response.data)
             })
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [global_watch, global_cycle])
+    }, [global_state.global_watch, global_state.global_cycle])
 
     const handleDelete = ({measurement_id}) => {
         axios.delete(BACKEND_URL + '/measurements/' + measurement_id)
             .then(response => {
-                axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
+                axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
                     .then(response => {
                         setData(response.data)
                     })
@@ -247,12 +238,12 @@ function MeasurementList({global_watch, set_global_watch, global_cycle, set_glob
 
     const handleCreate = ({datetime, value}) => {
         const str_datetime = datetime.toISOString().slice(0, 19).replace('T', ' ')
-        axios.post(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle, {
+        axios.post(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle, {
             datetime: str_datetime,
             measure: parseFloat(value)
         })
             .then(response => {
-                axios.get(BACKEND_URL + '/measurements/' + global_watch.id + '/' + global_cycle)
+                axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
                     .then(response => {
                         setData(response.data)
                     })
