@@ -7,8 +7,8 @@ from starlette.middleware.cors import CORSMiddleware
 import settings
 from .db_access import DBAccess
 from .utils import convert_table
-from .watch.log import WatchLogFrame
-from .watch.interpolation.collection import LinearInterpolation
+from .data_manipulation.log import WatchLogFrame
+from .data_manipulation.interpolation import LinearInterpolation
 
 app = FastAPI()
 db = DBAccess(settings.DATABASE_PATH)

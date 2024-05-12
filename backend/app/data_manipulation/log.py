@@ -4,7 +4,7 @@ from typing import Any
 import datetime as dt
 from math import sqrt
 
-from backend.app.watch.interpolation.base import InterpolationAbstract
+from .interpolation import InterpolationAbstract
 
 
 class Record(dict):
