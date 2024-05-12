@@ -3,6 +3,7 @@ import Dropdown from 'react-bootstrap/Dropdown';
 import Modal from 'react-bootstrap/Modal';
 import {BACKEND_URL} from './settings';
 import axios from "axios";
+import Plotly from 'plotly.js-dist';
 
 export default function App() {
     let [global_watch, set_global_watch] = useState(null)
@@ -16,7 +17,7 @@ export default function App() {
     }
 
     return (
-        <div>
+        <div style={{width: "100vw", height: "100vh"}}>
             <TopLine global_state={global_state}/>
             <div style={{padding: '10px'}}>
                 {<Content global_state={global_state}/>}
@@ -43,6 +44,7 @@ function TopLine({global_state}) {
 function WatchSelectList({global_state}) {
     const [data, setData] = useState([]);
     const [showAddWatchMenu, setShowAddWatchMenu] = useState(false);
+    const [showDeleteWatchMenu, setShowDeleteWatchMenu] = useState(false);
 
     useEffect(() => {
         axios.get(BACKEND_URL + '/watchlist')
@@ -52,7 +54,7 @@ function WatchSelectList({global_state}) {
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [showAddWatchMenu]);
+    }, [showAddWatchMenu, showDeleteWatchMenu]);
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
@@ -61,7 +63,7 @@ function WatchSelectList({global_state}) {
                     {global_state.global_watch ? global_state.global_watch.name : "Select a watch"}
                 </Dropdown.Toggle>
 
-                <Dropdown.Menu>
+                <Dropdown.Menu style={{maxHeight: "40vh", overflowY: "auto"}}>
                     {data.map(item => (
                         <WatchSelector watch={item}
                                        global_state={global_state} />
@@ -70,11 +72,18 @@ function WatchSelectList({global_state}) {
                     <Dropdown.Item onClick={() => setShowAddWatchMenu(true)}>
                         Add new watch
                     </Dropdown.Item>
+                    <Dropdown.Item onClick={() => setShowDeleteWatchMenu(true)}>
+                        Delete watch
+                    </Dropdown.Item>
                 </Dropdown.Menu>
             </Dropdown>
             {showAddWatchMenu && <AddWatchMenu global_state={global_state}
                                                showAddWatchMenu={showAddWatchMenu}
                                                setShowAddWatchMenu={setShowAddWatchMenu}/>}
+            {showDeleteWatchMenu && <DeleteWatchMenu global_state={global_state}
+                                                     watch_list={data}
+                                                     showDeleteWatchMenu={showDeleteWatchMenu}
+                                                     setShowDeleteWatchMenu={setShowDeleteWatchMenu}/>}
         </nav>
     );
 }
@@ -107,6 +116,47 @@ function AddWatchMenu({global_state, showAddWatchMenu, setShowAddWatchMenu}) {
             </Modal.Footer>
         </Modal>
     )
+}
+
+function DeleteWatchMenu({global_state, watch_list, showDeleteWatchMenu, setShowDeleteWatchMenu}) {
+
+    const onClickDelete = (watch) => {
+        axios.delete(BACKEND_URL + '/watchlist/' + watch.id)
+            .then(
+                () => {
+                    if (global_state.global_watch && global_state.global_watch.id === watch.id) {
+                        global_state.set_global_watch(null)
+                        global_state.set_global_cycle(null)
+                    }
+                }
+            )
+            .catch(error => {
+                console.error('Error deleting data:', error);
+            })
+    }
+
+    return (
+        <Modal show={showDeleteWatchMenu} onHide={() => setShowDeleteWatchMenu(false)}>
+            <Modal.Header closeButton>
+                <Modal.Title>Delete Watch</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <table>
+                    <tbody>
+                    {watch_list.map((watch, index) => (
+                        <tr key={index}>
+                            <td>{watch.name}</td>
+                            <td>
+                                <button onClick={() => {onClickDelete(watch); setShowDeleteWatchMenu(false)}}>Delete</button>
+                            </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+            </Modal.Body>
+        </Modal>
+    )
+
 }
 
 function WatchSelector({watch, global_state}) {
@@ -149,7 +199,7 @@ function CycleSelectList({global_state}) {
                     {global_state.global_cycle !== null ? global_state.global_cycle : "Select cycle"}
                 </Dropdown.Toggle>
 
-                <Dropdown.Menu>
+                <Dropdown.Menu style={{maxHeight: "40vh", overflowY: "auto"}}>
                     {data.map(item => (
                         <CycleSelector cycle={item} global_state={global_state} />
                     ))}
@@ -197,12 +247,48 @@ function Content({global_state}) {
                             <MeasurementList global_state={global_state} />
                         </td>
                         <td>
-                            <div style={{width: '100px', height: '100px', backgroundColor: 'red'}}></div>
+                            <MeasurementPlot global_state={global_state}/>
+                            <StatsView global_state={global_state}/>
                         </td>
                     </tr>
                     </tbody>
                 </table>
             </div>
+        </div>
+    );
+}
+
+function StatsView({global_state}) {
+    let [data, setData] = useState(null);
+
+    useEffect(() => {
+        axios.get(BACKEND_URL + '/stats/' + global_state.global_watch.id + '/' + global_state.global_cycle)
+            .then(response => {
+                setData(response.data)
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+            });
+    }, [global_state.global_watch, global_state.global_cycle])
+
+    return (
+        <div>
+            <table className="table">
+                <thead>
+                <tr>
+                    <th>Stat</th>
+                    <th>Value</th>
+                </tr>
+                </thead>
+                <tbody>
+                {data && Object.keys(data).map((key, index) => (
+                    <tr key={index}>
+                        <td>{key}</td>
+                        <td>{data[key]}</td>
+                    </tr>
+                ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -299,5 +385,47 @@ function MeasurementList({global_state}) {
                 </tbody>
             </table>
         </div>
+    );
+}
+
+function MeasurementPlot({global_state}) {
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
+            .then(response => {
+                setData(response.data)
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+            });
+    }, [global_state.global_watch, global_state.global_cycle])
+
+    useEffect(() => {
+        if (data) {
+            let x = data.map(item => item.datetime)
+            let y = data.map(item => item.difference)
+            let trace1 = {
+                x: x,
+                y: y,
+                mode: 'lines',
+                name: 'Line'
+            };
+            let trace2 = {
+                x: x,
+                y: y,
+                mode: 'markers',
+                name: 'Markers',
+                marker: {
+                    size: 10
+                }
+            };
+            let plotData = [trace1, trace2];
+            Plotly.newPlot('plot', plotData, {margin: {t: 0}})
+        }
+    }, [data])
+
+    return (
+        <div id="plot"></div>
     );
 }

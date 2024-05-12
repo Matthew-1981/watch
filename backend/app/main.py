@@ -1,3 +1,5 @@
+import datetime as dt
+
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -6,6 +8,7 @@ import settings
 from .db_access import DBAccess
 from .utils import convert_table
 from .watch.log import WatchLogFrame
+from .watch.interpolation.collection import LinearInterpolation
 
 app = FastAPI()
 db = DBAccess(settings.DATABASE_PATH)
@@ -49,6 +52,17 @@ async def add_watch(request: AddWatchRequest):
     return {'status': 'ok'}
 
 
+@app.delete('/watchlist/{watch_id}')
+async def delete_watch(request: Request, watch_id: int):
+    async with db.access() as conn:
+        out = conn.execute('DELETE FROM info WHERE watch_id = ?', (watch_id,))
+        if out.rowcount == 0:
+            raise HTTPException(status_code=400, detail='Watch not found.')
+        conn.execute('DELETE FROM logs WHERE watch_id = ?', (watch_id,))
+        conn.commit()
+    return {'status': 'ok'}
+
+
 @app.get('/measurements/{watch_id}/{cycle}')
 async def measurements(request: Request, watch_id: int, cycle: int):
     async with db.access() as conn:
@@ -63,6 +77,36 @@ async def measurements(request: Request, watch_id: int, cycle: int):
         ).fetchall()
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
     return frame.data
+
+
+@app.get('/stats/{watch_id}/{cycle}')
+async def stats(request: Request, watch_id: int, cycle: int):
+    async with db.access() as conn:
+        table = conn.execute(
+            '''
+            SELECT log_id, timedate, measure
+            FROM logs
+            WHERE watch_id = ? AND cycle = ?
+            ORDER BY timedate;
+            ''',
+            (watch_id, cycle)
+        ).fetchall()
+    table = [(row[0], dt.datetime.fromisoformat(row[1]), row[2]) for row in table]
+    frame = (WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table)
+             .fill(LinearInterpolation))
+    try:
+        out = {
+            'average': frame.average,
+            'deviation': frame.standard_deviation,
+            'delta': frame.delta
+        }
+    except ZeroDivisionError:
+        out = {
+            'average': 'N/A',
+            'deviation': 'N/A',
+            'delta': 0
+        }
+    return out
 
 
 @app.delete('/measurements/{log_id}')
