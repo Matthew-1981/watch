@@ -5,6 +5,8 @@ import {BACKEND_URL} from './settings';
 import axios from "axios";
 import Plotly from 'plotly.js-dist';
 
+import './App.css';
+
 export default function App() {
     let [global_watch, set_global_watch] = useState(null)
     let [global_cycle, set_global_cycle] = useState(null)
@@ -19,7 +21,7 @@ export default function App() {
     return (
         <div style={{width: "100vw", height: "100vh"}}>
             <TopLine global_state={global_state}/>
-            <div style={{padding: '10px'}}>
+            <div style={{padding: '15px'}}>
                 {<Content global_state={global_state}/>}
             </div>
         </div>
@@ -30,12 +32,12 @@ export default function App() {
 
 function TopLine({global_state}) {
 
-    const tmp = (global_state.global_watch ? (<CycleSelectList global_state={global_state} />) : (<div></div>))
+    const tmp = (global_state.global_watch ? (<CycleSelectList global_state={global_state}/>) : (<div></div>))
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
-            <a className="navbar-brand" href="#">Watch tracking</a>
-            <WatchSelectList global_state={global_state} />
+            <a className="navbar-brand" href="#" style={{paddingLeft: "10px"}}>Watch tracking</a>
+            <WatchSelectList global_state={global_state}/>
             {tmp}
         </nav>
     )
@@ -66,7 +68,7 @@ function WatchSelectList({global_state}) {
                 <Dropdown.Menu style={{maxHeight: "40vh", overflowY: "auto"}}>
                     {data.map(item => (
                         <WatchSelector watch={item}
-                                       global_state={global_state} />
+                                       global_state={global_state}/>
                     ))}
                     <Dropdown.Divider/>
                     <Dropdown.Item onClick={() => setShowAddWatchMenu(true)}>
@@ -147,7 +149,11 @@ function DeleteWatchMenu({global_state, watch_list, showDeleteWatchMenu, setShow
                         <tr key={index}>
                             <td>{watch.name}</td>
                             <td>
-                                <button onClick={() => {onClickDelete(watch); setShowDeleteWatchMenu(false)}}>Delete</button>
+                                <button className="deleteButton" onClick={() => {
+                                    onClickDelete(watch);
+                                    setShowDeleteWatchMenu(false)
+                                }}>Delete
+                                </button>
                             </td>
                         </tr>
                     ))}
@@ -201,7 +207,7 @@ function CycleSelectList({global_state}) {
 
                 <Dropdown.Menu style={{maxHeight: "40vh", overflowY: "auto"}}>
                     {data.map(item => (
-                        <CycleSelector cycle={item} global_state={global_state} />
+                        <CycleSelector cycle={item} global_state={global_state}/>
                     ))}
                     <Dropdown.Divider/>
                     <Dropdown.Item onClick={onClickCreateNewCycle}>
@@ -246,7 +252,7 @@ function Content({global_state}) {
     if (global_state.global_watch === null) {
 
         return (
-            <div className="vh-100 d-flex justify-content-center align-items-center">
+            <div className="d-flex justify-content-center align-items-center" style={{height: "80vh"}}>
                 <div className="display-4">Please select a watch</div>
             </div>
         );
@@ -263,7 +269,8 @@ function Content({global_state}) {
                             </td>
                             <td>
                                 <MeasurementPlot global_state={global_state} data={data} setData={setData}/>
-                                <StatsView global_state={global_state} measurement_data={data} set_measurement_data={setData}/>
+                                <StatsView global_state={global_state} measurement_data={data}
+                                           set_measurement_data={setData}/>
                             </td>
                         </tr>
                         </tbody>
@@ -328,6 +335,13 @@ function MeasurementList({global_state, data, setData}) {
     }
 
     const handleCreate = ({datetime, value}) => {
+        if (typeof value === 'string') {
+            try {
+                value = parseFloat(value)
+            } catch (error) {
+                return
+            }
+        }
         const str_datetime = datetime.toISOString().slice(0, 19).replace('T', ' ')
         axios.post(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle, {
             datetime: str_datetime,
@@ -366,7 +380,9 @@ function MeasurementList({global_state, data, setData}) {
                             <td>{item.measure}</td>
                             <td>{item.difference}</td>
                             <td>
-                                <button onClick={() => handleDelete({measurement_id: item.log_id})}>Delete</button>
+                                <button className="deleteButton"
+                                        onClick={() => handleDelete({measurement_id: item.log_id})}>Delete
+                                </button>
                             </td>
                         </tr>
                     ))}
@@ -376,11 +392,11 @@ function MeasurementList({global_state, data, setData}) {
             <table>
                 <tbody>
                 <tr>
-                    <td>
-                        <input type="number" id="value"/>
+                    <td style={{paddingRight: "10px"}}>
+                        <input type="text" id="value"/>
                     </td>
                     <td>
-                        <button onClick={() => handleCreate({
+                        <button className="createButton" onClick={() => handleCreate({
                             datetime: new Date(),
                             value: document.getElementById('value').value
                         })}>Create
@@ -403,13 +419,13 @@ function MeasurementPlot({global_state, data, setData}) {
                 x: x,
                 y: y,
                 mode: 'lines',
-                name: 'Line'
+                name: 'interpolated'
             };
             let trace2 = {
                 x: x,
                 y: y,
                 mode: 'markers',
-                name: 'Markers',
+                name: 'measured',
                 marker: {
                     size: 10
                 }
