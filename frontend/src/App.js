@@ -229,36 +229,52 @@ function CycleSelector({cycle, global_state}) {
 
 function Content({global_state}) {
 
-    if (!global_state.global_watch) {
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        if (global_state.global_watch !== null && global_state.global_cycle !== null) {
+            axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
+                .then(response => {
+                    setData(response.data)
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+        }
+    }, [global_state.global_watch, global_state.global_cycle])
+
+    if (global_state.global_watch === null) {
+
         return (
             <div className="vh-100 d-flex justify-content-center align-items-center">
                 <div className="display-4">Please select a watch</div>
             </div>
         );
-    }
+    } else {
 
-    return (
-        <div>
-            <div style={{overflow: 'auto', textAlign: 'left'}}>
-                <table style={{width: '100%'}}>
-                    <tbody>
-                    <tr>
-                        <td style={{width: '50%', paddingRight: '20px'}}>
-                            <MeasurementList global_state={global_state} />
-                        </td>
-                        <td>
-                            <MeasurementPlot global_state={global_state}/>
-                            <StatsView global_state={global_state}/>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
+        return (
+            <div>
+                <div style={{overflow: 'auto', textAlign: 'left'}}>
+                    <table style={{width: '100%'}}>
+                        <tbody>
+                        <tr>
+                            <td style={{width: '50%', paddingRight: '20px'}}>
+                                <MeasurementList global_state={global_state} data={data} setData={setData}/>
+                            </td>
+                            <td>
+                                <MeasurementPlot global_state={global_state} data={data} setData={setData}/>
+                                <StatsView global_state={global_state} measurement_data={data} set_measurement_data={setData}/>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    );
+        )
+    }
 }
 
-function StatsView({global_state}) {
+function StatsView({global_state, measurement_data, set_measurement_data}) {
     let [data, setData] = useState(null);
 
     useEffect(() => {
@@ -269,7 +285,7 @@ function StatsView({global_state}) {
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [global_state.global_watch, global_state.global_cycle])
+    }, [global_state.global_watch, global_state.global_cycle, measurement_data])
 
     return (
         <div>
@@ -293,18 +309,7 @@ function StatsView({global_state}) {
     );
 }
 
-function MeasurementList({global_state}) {
-    const [data, setData] = useState(null);
-
-    useEffect(() => {
-        axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
-            .then(response => {
-                setData(response.data)
-            })
-            .catch(error => {
-                console.error('Error fetching data:', error);
-            });
-    }, [global_state.global_watch, global_state.global_cycle])
+function MeasurementList({global_state, data, setData}) {
 
     const handleDelete = ({measurement_id}) => {
         axios.delete(BACKEND_URL + '/measurements/' + measurement_id)
@@ -388,18 +393,7 @@ function MeasurementList({global_state}) {
     );
 }
 
-function MeasurementPlot({global_state}) {
-    const [data, setData] = useState(null);
-
-    useEffect(() => {
-        axios.get(BACKEND_URL + '/measurements/' + global_state.global_watch.id + '/' + global_state.global_cycle)
-            .then(response => {
-                setData(response.data)
-            })
-            .catch(error => {
-                console.error('Error fetching data:', error);
-            });
-    }, [global_state.global_watch, global_state.global_cycle])
+function MeasurementPlot({global_state, data, setData}) {
 
     useEffect(() => {
         if (data) {
