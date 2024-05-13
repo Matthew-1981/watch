@@ -106,10 +106,10 @@ function AddWatchMenu({global_state, showAddWatchMenu, setShowAddWatchMenu}) {
                 <Modal.Title>Add Watch</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-                <input type="text" id="watch_name"/>
+                <input type="text" id="watch_name" style={{width: "100%"}}/>
             </Modal.Body>
             <Modal.Footer>
-                <button onClick={() => {
+                <button className="createButton" onClick={() => {
                     addWatch({watch_name: document.getElementById('watch_name').value})
                     setShowAddWatchMenu(false)
                 }}>
