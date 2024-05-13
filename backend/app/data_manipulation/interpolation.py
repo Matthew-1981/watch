@@ -1,7 +1,18 @@
 from __future__ import annotations
 from typing import Self, Optional
+from abc import ABC, abstractmethod
 
-from .base import InterpolationAbstract
+
+class InterpolationAbstract(ABC):
+
+    @classmethod
+    @abstractmethod
+    def calculate(cls, data: list[tuple[float, float]]) -> Self:
+        ...
+
+    @abstractmethod
+    def __call__(self, x: float) -> float:
+        ...
 
 
 class QubicSplineInterpolation(InterpolationAbstract):
