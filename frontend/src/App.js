@@ -110,8 +110,11 @@ function AddWatchMenu({global_state, showAddWatchMenu, setShowAddWatchMenu}) {
             </Modal.Body>
             <Modal.Footer>
                 <button className="createButton" onClick={() => {
-                    addWatch({watch_name: document.getElementById('watch_name').value})
-                    setShowAddWatchMenu(false)
+                    const to_be_added = document.getElementById('watch_name').value
+                    if (to_be_added !== "") {
+                        addWatch({watch_name: to_be_added})
+                        setShowAddWatchMenu(false)
+                    }
                 }}>
                     Add watch
                 </button>
@@ -143,7 +146,7 @@ function DeleteWatchMenu({global_state, watch_list, showDeleteWatchMenu, setShow
                 <Modal.Title>Delete Watch</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-                <table>
+                <table className="table">
                     <tbody>
                     {watch_list.map((watch, index) => (
                         <tr key={index}>
@@ -268,9 +271,11 @@ function Content({global_state}) {
                                 <MeasurementList global_state={global_state} data={data} setData={setData}/>
                             </td>
                             <td>
-                                <MeasurementPlot global_state={global_state} data={data} setData={setData}/>
-                                <StatsView global_state={global_state} measurement_data={data}
-                                           set_measurement_data={setData}/>
+                                <div style={{overflowY: "auto", height: "80vh"}}>
+                                    <MeasurementPlot global_state={global_state} data={data} setData={setData}/>
+                                    <StatsView global_state={global_state} measurement_data={data}
+                                               set_measurement_data={setData}/>
+                                </div>
                             </td>
                         </tr>
                         </tbody>
@@ -367,10 +372,10 @@ function MeasurementList({global_state, data, setData}) {
                 <table className="table">
                     <thead>
                     <tr>
-                        <th>Time Stamp</th>
-                        <th>Measure</th>
-                        <th>Delta</th>
-                        <th></th>
+                        <th style={{position: "sticky", top: "0"}}>Time Stamp</th>
+                        <th style={{position: "sticky", top: "0"}}>Measure</th>
+                        <th style={{position: "sticky", top: "0"}}>Delta</th>
+                        <th style={{position: "sticky", top: "0"}}></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -414,7 +419,7 @@ function MeasurementPlot({global_state, data, setData}) {
     useEffect(() => {
         if (data) {
             let x = data.map(item => item.datetime)
-            let y = data.map(item => item.difference)
+            let y = data.map(item => item.measure)
             let trace1 = {
                 x: x,
                 y: y,

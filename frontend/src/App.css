@@ -12,6 +12,10 @@
     border-radius: 4px;
 }
 
+.deleteButton:hover {
+    background-color: #ff1a1a;
+}
+
 .createButton {
     background-color: rgb(64, 133, 88);
     color: white;
@@ -24,4 +28,8 @@
     /*margin: 4px 2px;*/
     cursor: pointer;
     border-radius: 4px;
+}
+
+.createButton:hover {
+    background-color: rgb(53, 110, 73);
 }
