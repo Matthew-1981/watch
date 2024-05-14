@@ -389,7 +389,7 @@ function MeasurementList({global_state, data, setData}) {
                     <tbody>
                     {data && data.map((item, index) => (
                         <tr key={index}>
-                            <td>{item.datetime}</td>
+                            <td>{item.datetime.toLocaleString().replace('T', ' ')}</td>
                             <td>{item.measure}</td>
                             <td>{item.difference}</td>
                             <td>
