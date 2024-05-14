@@ -1,5 +1,5 @@
-from mysql.connector.errors import IntegrityError
 from fastapi import FastAPI, Request, HTTPException
+from mysql.connector.errors import IntegrityError
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
@@ -27,7 +27,7 @@ async def watchlist(request: Request):
         await wp.cursor.execute('SELECT watch_id, name FROM info')
         watches = convert_table(('id', 'name'), await wp.cursor.fetchall())
         for watch in watches:
-            await wp.cursor.execute('SELECT DISTINCT cycle FROM logs WHERE watch_id = %d',
+            await wp.cursor.execute('SELECT DISTINCT cycle FROM logs WHERE watch_id = %s',
                                     (watch['id'],))
             watch['cycles'] = [t[0] for t in await wp.cursor.fetchall()]
     return watches
@@ -44,18 +44,17 @@ async def add_watch(request: AddWatchRequest):
             await wp.cursor.execute('INSERT INTO info (name) VALUES (%s)', (request.name,))
         except IntegrityError:
             raise HTTPException(status_code=400, detail='Failed to insert.')
-        else:
-            await wp.commit()
+        await wp.commit()
     return {'status': 'ok'}
 
 
 @app.delete('/watchlist/{watch_id}')
 async def delete_watch(request: Request, watch_id: int):
     async with db.access() as wp:
-        await wp.cursor.execute('DELETE FROM info WHERE watch_id = %d', (watch_id,))
+        await wp.cursor.execute('DELETE FROM logs WHERE watch_id = %s', (watch_id,))
+        await wp.cursor.execute('DELETE FROM info WHERE watch_id = %s', (watch_id,))
         if wp.cursor.rowcount == 0:
             raise HTTPException(status_code=400, detail='Watch not found.')
-        await wp.cursor.execute('DELETE FROM logs WHERE watch_id = %d', (watch_id,))
         await wp.commit()
     return {'status': 'ok'}
 
@@ -67,12 +66,13 @@ async def measurements(request: Request, watch_id: int, cycle: int):
             '''
             SELECT log_id, timedate, measure
             FROM logs
-            WHERE watch_id = %d AND cycle = %d
+            WHERE watch_id = %s AND cycle = %s
             ORDER BY timedate;
             ''',
             (watch_id, cycle)
         )
-    frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), wp.cursor.fetchall()).get_log_with_dif()
+        table = await wp.cursor.fetchall()
+    frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
     return frame.data
 
 
@@ -83,12 +83,12 @@ async def stats(request: Request, watch_id: int, cycle: int):
             '''
             SELECT log_id, timedate, measure
             FROM logs
-            WHERE watch_id = %d AND cycle = %d
+            WHERE watch_id = %s AND cycle = %s
             ORDER BY timedate;
             ''',
             (watch_id, cycle)
         )
-    table = wp.cursor.fetchall()
+        table = await wp.cursor.fetchall()
     frame = (WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table)
              .fill(LinearInterpolation))
     try:
@@ -109,7 +109,7 @@ async def stats(request: Request, watch_id: int, cycle: int):
 @app.delete('/measurements/{log_id}')
 async def delete_measurement(request: Request, log_id: int):
     async with db.access() as wp:
-        await wp.cursor.execute('DELETE FROM logs WHERE log_id = %d', (log_id,))
+        await wp.cursor.execute('DELETE FROM logs WHERE log_id = %s', (log_id,))
         if wp.cursor.rowcount == 0:
             raise HTTPException(status_code=400, detail='Log not found.')
         await wp.commit()
@@ -128,7 +128,7 @@ async def add_measurement(request: CreateMeasurementRequest, watch_id: int, cycl
             await wp.cursor.execute(
                 '''
                 INSERT INTO logs (watch_id, cycle, timedate, measure)
-                VALUES (?, ?, ?, ?);
+                VALUES (%s, %s, %s, %s);
                 ''',
                 (watch_id, cycle, request.datetime, request.measure)
             )

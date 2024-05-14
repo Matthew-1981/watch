@@ -1,11 +1,13 @@
 import React, {useEffect, useState} from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
 import Modal from 'react-bootstrap/Modal';
-import {BACKEND_URL} from './settings';
 import axios from "axios";
 import Plotly from 'plotly.js-dist';
 
 import './App.css';
+
+// settings
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL
 
 export default function App() {
     let [global_watch, set_global_watch] = useState(null)

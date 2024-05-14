@@ -9,7 +9,7 @@ def _get_env_raise(env_name: str) -> str:
 
 
 SERVER_HOST = _get_env_raise('SERVER_HOST')
-SERVER_PORT = _get_env_raise('SERVER_PORT')
+SERVER_PORT = int(_get_env_raise('SERVER_PORT'))
 
 ORIGINS = _get_env_raise('ORIGINS').split(';')
 
