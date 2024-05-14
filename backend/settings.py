@@ -1,12 +1,22 @@
-from pathlib import Path
-import sqlite3 as sl3
+import os
 
-SERVER_HOST = '127.0.0.1'
-SERVER_PORT = 8001
 
-BASE_DIR = Path(__file__).parent.parent
-DATABASE_PATH = BASE_DIR / 'watchDB.sqlite3'
+def _get_env_raise(env_name: str) -> str:
+    value = os.getenv(env_name)
+    if value is None:
+        raise ValueError(f'{env_name} is not set')
+    return value
 
-if not DATABASE_PATH.exists():
-    SCHEMA_PATH = BASE_DIR / 'db' / 'schema.sql'
-    sl3.connect(DATABASE_PATH).executescript(SCHEMA_PATH.read_text())
+
+SERVER_HOST = _get_env_raise('SERVER_HOST')
+SERVER_PORT = _get_env_raise('SERVER_PORT')
+
+ORIGINS = _get_env_raise('ORIGINS').split(';')
+
+DATABASE_CONFIG = {
+    'user': _get_env_raise('DB_USER'),
+    'password': _get_env_raise('DB_PASSWORD'),
+    'host': _get_env_raise('DB_HOST'),
+    'database': _get_env_raise('DB_NAME'),
+    # 'raise_on_warnings': True
+}
