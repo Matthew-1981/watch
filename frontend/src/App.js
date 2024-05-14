@@ -1,21 +1,27 @@
 import React, {useEffect, useState} from "react";
 import Dropdown from 'react-bootstrap/Dropdown';
 import Modal from 'react-bootstrap/Modal';
-import {BACKEND_URL} from './settings';
 import axios from "axios";
 import Plotly from 'plotly.js-dist';
 
 import './App.css';
 
+// settings
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL
+
 export default function App() {
     let [global_watch, set_global_watch] = useState(null)
     let [global_cycle, set_global_cycle] = useState(null)
+    let [reset, set_reset] = useState(true)
 
     let global_state = {
         global_watch: global_watch,
         set_global_watch: set_global_watch,
         global_cycle: global_cycle,
-        set_global_cycle: set_global_cycle
+        set_global_cycle: set_global_cycle,
+
+        reset: reset,
+        set_reset: set_reset
     }
 
     return (
@@ -56,7 +62,7 @@ function WatchSelectList({global_state}) {
             .catch(error => {
                 console.error('Error fetching data:', error);
             });
-    }, [showAddWatchMenu, showDeleteWatchMenu]);
+    }, [global_state.reset]);
 
     return (
         <nav className="navbar navbar-expand-lg navbar-light bg-light">
@@ -94,7 +100,7 @@ function AddWatchMenu({global_state, showAddWatchMenu, setShowAddWatchMenu}) {
 
     const addWatch = ({watch_name}) => {
         axios.post(BACKEND_URL + '/watchlist', {name: watch_name})
-            .then()
+            .then(() => global_state.set_reset(!global_state.reset))
             .catch(error => {
                 console.error('Error creating data:', error);
             })
@@ -133,6 +139,7 @@ function DeleteWatchMenu({global_state, watch_list, showDeleteWatchMenu, setShow
                         global_state.set_global_watch(null)
                         global_state.set_global_cycle(null)
                     }
+                    global_state.set_reset(!global_state.reset)
                 }
             )
             .catch(error => {
@@ -191,14 +198,15 @@ function CycleSelectList({global_state}) {
             tmp = [0]
         tmp.sort((a, b) => parseFloat(a) - parseFloat(b));
         setData(tmp)
-    }, [global_state.global_watch, global_state.set_global_cycle])
+    }, [global_state.global_watch])
 
     const onClickCreateNewCycle = () => {
         let new_cycle = 0
         if (data.length > 0)
             new_cycle = Math.max(...data) + 1
         global_state.set_global_cycle(new_cycle)
-        global_state.global_watch.cycles.push(new_cycle)
+        data.push(new_cycle)
+        setData(data)
     }
 
     return (
@@ -381,7 +389,7 @@ function MeasurementList({global_state, data, setData}) {
                     <tbody>
                     {data && data.map((item, index) => (
                         <tr key={index}>
-                            <td>{item.datetime}</td>
+                            <td>{item.datetime.toLocaleString().replace('T', ' ')}</td>
                             <td>{item.measure}</td>
                             <td>{item.difference}</td>
                             <td>

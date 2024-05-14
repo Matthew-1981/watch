@@ -1,0 +1,50 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:80"
+    environment:
+      - SERVER_HOST=${BACKEND_HOST}
+      - SERVER_PORT=${BACKEND_PORT}
+      - DB_USER=${DB_USER_BACKEND}
+      - DB_PASSWORD=${DB_PASSWORD_BACKEND}
+      - DB_HOST=db.domain
+      - DB_NAME=${DB_NAME}
+      - ORIGINS=${ORIGINS}
+    depends_on:
+      - db
+    networks:
+      inner_network:
+        aliases:
+          - backend.domain
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
+    networks:
+      inner_network:
+        aliases:
+          - frontend.domain
+
+  db:
+    build: ./db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+#      - MYSQL_USER=${DB_USER}
+#      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      inner_network:
+        aliases:
+          - db.domain
+
+volumes:
+  db_data:
+
+networks:
+  inner_network:
