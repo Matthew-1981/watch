@@ -4,13 +4,13 @@ services:
     ports:
       - "8000:80"
     environment:
-      - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=80
-      - DB_USER=root
-      - DB_PASSWORD=root_password
+      - SERVER_HOST=${BACKEND_HOST}
+      - SERVER_PORT=${BACKEND_PORT}
+      - DB_USER=${DB_USER_BACKEND}
+      - DB_PASSWORD=${DB_PASSWORD_BACKEND}
       - DB_HOST=db.domain
-      - DB_NAME=watch_db
-      - ORIGINS=*
+      - DB_NAME=${DB_NAME}
+      - ORIGINS=${ORIGINS}
     depends_on:
       - db
     networks:
@@ -23,7 +23,7 @@ services:
     ports:
       - "80:3000"
     environment:
-      - REACT_APP_BACKEND_URL=http://localhost:8000
+      - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
     networks:
       inner_network:
         aliases:
@@ -32,8 +32,10 @@ services:
   db:
     build: ./db
     environment:
-      - MYSQL_ROOT_PASSWORD=root_password
-      - MYSQL_DATABASE=watch_db
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+#      - MYSQL_USER=${DB_USER}
+#      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
     volumes:
       - db_data:/var/lib/mysql
     networks:
