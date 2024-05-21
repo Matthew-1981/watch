@@ -31,8 +31,8 @@ services:
     build: ./db
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-#      - MYSQL_USER=${DB_USER}
-#      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_NAME}
     volumes:
       - db_data:/var/lib/mysql
