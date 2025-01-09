@@ -83,3 +83,97 @@ class WatchRecord:
         if cursor.rowcount != 1:
             raise DatabaseError()
         return await cls.get_watch_by_name(cursor, watch.user_id, watch.name)
+
+
+class NewLog(BaseModel):
+    watch_id: int
+    cycle: int
+    timedate: datetime
+    measure: float
+
+
+class ExistingLog(NewLog):
+    log_id: int
+
+
+class LogRecord:
+
+    def __init__(self, row: ExistingLog):
+        self._initial_ids = (row.watch_id, row.log_id)
+        self.data = row
+
+    def check_integrity(self) -> bool:
+        return self._initial_ids == (self.data.watch_id, self.data.log_id)
+
+    async def update(self, cursor: MySQLCursor):
+        if not self.check_integrity():
+            raise RuntimeError
+        await cursor.execute(
+            "UPDATE log SET watch_id = %s, cycle = %s, timedate = %s, measure = %s WHERE log_id = %s",
+            (self.data.watch_id, self.data.cycle, self.data.timedate, self.data.measure, self.data.log_id)
+        )
+        if cursor.rowcount != 1:
+            raise DatabaseError()
+
+    async def delete(self, cursor: MySQLCursor):
+        if not self.check_integrity():
+            raise RuntimeError
+        await cursor.execute(
+            "DELETE FROM log WHERE log_id = %s",
+            (self.data.log_id,)
+        )
+        if cursor.rowcount != 1:
+            raise DatabaseError()
+
+    @classmethod
+    async def get_log_by_id(cls, cursor: MySQLCursor, log_id: int) -> Self:
+        await cursor.execute("SELECT * FROM log WHERE log_id = %s", (log_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            raise DatabaseError()
+        log = ExistingLog(
+            log_id=row[0],
+            watch_id=row[1],
+            cycle=row[2],
+            timedate=row[3],
+            measure=row[4]
+        )
+        return cls(log)
+
+    @classmethod
+    async def new_log(cls, cursor: MySQLCursor, log: NewLog) -> Self:
+        await cursor.execute(
+            "INSERT INTO log (watch_id, cycle, timedate, measure) VALUES (%s, %s, %s, %s)",
+            (log.watch_id, log.cycle, log.timedate, log.measure)
+        )
+        if cursor.rowcount != 1:
+            raise DatabaseError()
+        return await cls.get_log_by_id(cursor, cursor.lastrowid)
+
+    @classmethod
+    async def get_logs(cls, cursor: MySQLCursor, watch_id: int, cycle: int) -> tuple[Self, ...]:
+        await cursor.execute(
+            "SELECT * FROM log WHERE watch_id = %s AND cycle = %s",
+            (watch_id, cycle)
+        )
+        rows = await cursor.fetchall()
+        out = []
+        for row in rows:
+            current = ExistingLog(
+                log_id=row[0],
+                watch_id=row[1],
+                cycle=row[2],
+                timedate=row[3],
+                measure=row[4]
+            )
+            out.append(cls(current))
+        return tuple(out)
+
+    @classmethod
+    async def delete_logs(cls, cursor: MySQLCursor, watch_id: int, cycle: int):
+        await cursor.execute(
+            "DELETE FROM log WHERE watch_id = %s AND cycle = %s",
+            (watch_id, cycle)
+        )
+        if cursor.rowcount == -1:
+            raise DatabaseError()
