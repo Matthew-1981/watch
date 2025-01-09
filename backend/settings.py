@@ -8,15 +8,12 @@ def _get_env_raise(env_name: str) -> str:
     return value
 
 
-SERVER_HOST = _get_env_raise('SERVER_HOST')
-SERVER_PORT = int(_get_env_raise('SERVER_PORT'))
-
 ORIGINS = _get_env_raise('ORIGINS').split(';')
 
 DATABASE_CONFIG = {
-    'user': _get_env_raise('DB_USER'),
-    'password': _get_env_raise('DB_PASSWORD'),
-    'host': _get_env_raise('DB_HOST'),
-    'database': _get_env_raise('DB_NAME'),
+    'user': _get_env_raise('MYSQL_USER'),
+    'password': _get_env_raise('MYSQL_PASSWORD'),
+    'host': _get_env_raise('MYSQL_HOST'),
+    'database': _get_env_raise('MYSQL_DATABASE'),
     # 'raise_on_warnings': True
 }
