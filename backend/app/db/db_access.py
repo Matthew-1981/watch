@@ -5,7 +5,7 @@ from mysql.connector.aio.cursor import MySQLCursor
 class DBWrapper:
 
     def __init__(self, db: MySQLConnection, cursor: MySQLCursor):
-        self._db: MySQLConnection = db
+        self.db: MySQLConnection = db
         self._cursor: MySQLCursor = cursor
 
     @property
@@ -13,7 +13,10 @@ class DBWrapper:
         return self._cursor
 
     async def commit(self):
-        await self._db.commit()
+        await self.db.commit()
+
+    async def rollback(self):
+        await self.db.rollback()
 
 
 class DBContext:
