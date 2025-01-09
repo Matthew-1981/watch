@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from mysql.connector.aio import connect, MySQLConnection
 from mysql.connector.aio.cursor import MySQLCursor
 
@@ -40,6 +42,18 @@ class DBAccess:
 
     def __init__(self, db_credentials: dict):
         self.credentials = db_credentials
+
+    async def run_sql(self, sql_script: str):
+        async with self.access() as wp:
+            sql_statements = sql_script.split(';')
+            for statement in sql_statements:
+                if statement.strip():
+                    await wp.cursor.execute(statement)
+
+    async def run_sql_file(self, file: Path):
+        with open(file) as f:
+            sql_script = f.read()
+        await self.run_sql(sql_script)
 
     def access(self) -> DBContext:
         return DBContext(self.credentials)
