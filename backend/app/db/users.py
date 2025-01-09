@@ -4,7 +4,7 @@ from typing import Self
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
 
-from .common import DatabaseError
+from .common import ORMError
 
 
 class NewUser(BaseModel):
@@ -34,7 +34,7 @@ class UserRecord:
             (self.data.user_name, self.data.password_hash, self.data.date_of_creation, self.data.user_id)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -44,14 +44,14 @@ class UserRecord:
             (self.data.user_id,)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     @classmethod
     async def get_user_by_id(cls, cursor: MySQLCursor, user_id: int) -> Self:
         await cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         user = ExistingUser(
             user_id=row[0],
             user_name=row[1],
@@ -65,7 +65,7 @@ class UserRecord:
         await cursor.execute("SELECT * FROM users WHERE user_name = %s", (user_name,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         user = ExistingUser(
             user_id=row[0],
             user_name=row[1],
@@ -81,13 +81,14 @@ class UserRecord:
             (user.user_name, user.password_hash, user.date_of_creation)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError
+            raise ORMError()
         return await cls.get_user_by_name(cursor, user.user_name)
 
 
 class NewToken(BaseModel):
     user_id: int
     token: str
+    expiration: datetime
 
 
 class ExistingToken(NewToken):
@@ -107,11 +108,11 @@ class TokenRecord:
         if not self.check_integrity():
             raise RuntimeError
         await cursor.execute(
-            "UPDATE session_token SET user_id = %s, token = %s WHERE token_id = %s",
-            (self.data.user_id, self.data.token, self.data.token_id)
+            "UPDATE session_token SET user_id = %s, token = %s, expiration = %s WHERE token_id = %s",
+            (self.data.user_id, self.data.token,  self.data.expiration, self.data.token_id)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -121,18 +122,19 @@ class TokenRecord:
             (self.data.token_id,)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     @classmethod
     async def get_token_by_id(cls, cursor: MySQLCursor, token_id: int) -> Self:
         await cursor.execute("SELECT * FROM session_token WHERE token_id = %s", (token_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         token = ExistingToken(
             token_id=row[0],
             user_id=row[1],
-            token=row[2]
+            token=row[2],
+            expiration=row[3]
         )
         return cls(token)
 
@@ -141,20 +143,21 @@ class TokenRecord:
         await cursor.execute("SELECT * FROM session_token WHERE token = %s", (token,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         token = ExistingToken(
             token_id=row[0],
             user_id=row[1],
-            token=row[2]
+            token=row[2],
+            expiration=row[3]
         )
         return cls(token)
 
     @classmethod
     async def new_token(cls, cursor: MySQLCursor, token: NewToken) -> Self:
         await cursor.execute(
-            "INSERT INTO session_token (user_id, token) VALUES (%s, %s)",
-            (token.user_id, token.token)
+            "INSERT INTO session_token (user_id, token, expiration) VALUES (%s, %s, %s)",
+            (token.user_id, token.token, token.expiration)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
         return await cls.get_token_by_value(cursor, token.token)

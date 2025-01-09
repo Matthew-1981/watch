@@ -4,3 +4,4 @@ starlette
 uvicorn
 pydantic
 mysql-connector-python
+passlib

@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -70,17 +70,17 @@ class TestUsers(unittest.IsolatedAsyncioTestCase):
             await wp.commit()
 
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.UserRecord.get_user_by_name(wp.cursor, 'test')
 
     async def test_get_user_by_id_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.UserRecord.get_user_by_id(wp.cursor, 999)
 
     async def test_get_user_by_name_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.UserRecord.get_user_by_name(wp.cursor, 'nonexistent')
 
 
@@ -102,7 +102,8 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             user_record = await users.UserRecord.new_user(wp.cursor, new_user)
             new_token = users.NewToken(
                 user_id=user_record.data.user_id,
-                token='TOKEN123'
+                token='TOKEN123',
+                expiration=datetime.now() + timedelta(days=1)
             )
             token_record = await users.TokenRecord.new_token(wp.cursor, new_token)
             await wp.commit()
@@ -111,6 +112,7 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             token = await users.TokenRecord.get_token_by_value(wp.cursor, 'TOKEN123')
 
         self.assertEqual(new_token.token, token.data.token)
+        self.assertEqual(new_token.expiration.replace(microsecond=0), token.data.expiration)
 
     async def test_update_token(self):
         new_user = users.NewUser(
@@ -122,10 +124,12 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             user_record = await users.UserRecord.new_user(wp.cursor, new_user)
             new_token = users.NewToken(
                 user_id=user_record.data.user_id,
-                token='TOKEN123'
+                token='TOKEN123',
+                expiration=datetime.now() + timedelta(days=1)
             )
             token_record = await users.TokenRecord.new_token(wp.cursor, new_token)
             token_record.data.token = 'NEW_TOKEN'
+            token_record.data.expiration = datetime.now() + timedelta(days=2)
             await token_record.update(wp.cursor)
             await wp.commit()
 
@@ -133,6 +137,7 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             updated_token = await users.TokenRecord.get_token_by_value(wp.cursor, 'NEW_TOKEN')
 
         self.assertEqual(updated_token.data.token, 'NEW_TOKEN')
+        self.assertEqual(updated_token.data.expiration.replace(microsecond=0), token_record.data.expiration)
 
     async def test_delete_token(self):
         new_user = users.NewUser(
@@ -144,24 +149,25 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             user_record = await users.UserRecord.new_user(wp.cursor, new_user)
             new_token = users.NewToken(
                 user_id=user_record.data.user_id,
-                token='TOKEN123'
+                token='TOKEN123',
+                expiration=datetime.now() + timedelta(days=1)
             )
             token_record = await users.TokenRecord.new_token(wp.cursor, new_token)
             await token_record.delete(wp.cursor)
             await wp.commit()
 
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.TokenRecord.get_token_by_value(wp.cursor, 'TOKEN123')
 
     async def test_get_token_by_id_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.TokenRecord.get_token_by_id(wp.cursor, 999)
 
     async def test_get_token_by_value_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await users.TokenRecord.get_token_by_value(wp.cursor, 'nonexistent')
 
 
@@ -227,17 +233,17 @@ class TestWatches(unittest.IsolatedAsyncioTestCase):
             await wp.commit()
 
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await watches.WatchRecord.get_watch_by_name(wp.cursor, new_watch.user_id, new_watch.name)
 
     async def test_get_watch_by_id_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await watches.WatchRecord.get_watch_by_id(wp.cursor, 999)
 
     async def test_get_watch_by_name_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await watches.WatchRecord.get_watch_by_name(wp.cursor, 1, 'nonexistent')
 
 
@@ -316,12 +322,12 @@ class TestLogs(unittest.IsolatedAsyncioTestCase):
             await wp.commit()
 
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await watches.LogRecord.get_log_by_id(wp.cursor, log_record.data.log_id)
 
     async def test_get_log_by_id_not_found(self):
         async with self.db.access() as wp:
-            with self.assertRaises(common.DatabaseError):
+            with self.assertRaises(common.ORMError):
                 await watches.LogRecord.get_log_by_id(wp.cursor, 999)
 
 

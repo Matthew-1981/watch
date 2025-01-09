@@ -4,7 +4,7 @@ from typing import Self
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
 
-from .common import DatabaseError
+from .common import ORMError
 
 
 class NewWatch(BaseModel):
@@ -34,7 +34,7 @@ class WatchRecord:
             (self.data.user_id, self.data.name, self.data.date_of_creation, self.data.watch_id)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -44,14 +44,14 @@ class WatchRecord:
             (self.data.watch_id,)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     @classmethod
     async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
         await cursor.execute("SELECT * FROM watch WHERE watch_id = %s", (watch_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         watch = ExistingWatch(
             watch_id=row[0],
             user_id=row[1],
@@ -65,7 +65,7 @@ class WatchRecord:
         await cursor.execute("SELECT * FROM watch WHERE user_id = %s AND name = %s", (user_id, name))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         watch = ExistingWatch(
             watch_id=row[0],
             user_id=row[1],
@@ -81,7 +81,7 @@ class WatchRecord:
             (watch.user_id, watch.name, watch.date_of_creation)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
         return await cls.get_watch_by_name(cursor, watch.user_id, watch.name)
 
 
@@ -113,7 +113,7 @@ class LogRecord:
             (self.data.watch_id, self.data.cycle, self.data.timedate, self.data.measure, self.data.log_id)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -123,14 +123,14 @@ class LogRecord:
             (self.data.log_id,)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
 
     @classmethod
     async def get_log_by_id(cls, cursor: MySQLCursor, log_id: int) -> Self:
         await cursor.execute("SELECT * FROM log WHERE log_id = %s", (log_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise DatabaseError()
+            raise ORMError()
         log = ExistingLog(
             log_id=row[0],
             watch_id=row[1],
@@ -147,7 +147,7 @@ class LogRecord:
             (log.watch_id, log.cycle, log.timedate, log.measure)
         )
         if cursor.rowcount != 1:
-            raise DatabaseError()
+            raise ORMError()
         return await cls.get_log_by_id(cursor, cursor.lastrowid)
 
     @classmethod
@@ -176,4 +176,4 @@ class LogRecord:
             (watch_id, cycle)
         )
         if cursor.rowcount == -1:
-            raise DatabaseError()
+            raise ORMError()

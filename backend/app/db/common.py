@@ -1,2 +1,2 @@
-class DatabaseError(Exception):
+class ORMError(Exception):
     pass
