@@ -15,7 +15,7 @@ DROP TABLE session_token;
 DROP TABLE users;
 """
 
-sql_init_path = Path(__file__).parents[1] / 'app' / 'resources' / 'schema.sql'
+schema_root = Path(__file__).parents[1] / 'app' / 'schema'
 
 
 class TestUsers(unittest.IsolatedAsyncioTestCase):
@@ -23,7 +23,8 @@ class TestUsers(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        await self.db.run_sql_file(sql_init_path)
+        for schema in ['user.sql', 'watch.sql']:
+            await self.db.run_sql_file(schema_root / schema)
 
     async def test_insert_user(self):
         new_user = users.NewUser(
@@ -88,7 +89,8 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        await self.db.run_sql_file(sql_init_path)
+        for schema in ['user.sql', 'watch.sql']:
+            await self.db.run_sql_file(schema_root / schema)
 
     async def test_insert_token(self):
         new_user = users.NewUser(
@@ -168,7 +170,8 @@ class TestWatches(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        await self.db.run_sql_file(sql_init_path)
+        for schema in ['user.sql', 'watch.sql']:
+            await self.db.run_sql_file(schema_root / schema)
 
         # Add a user to the database
         new_user = users.NewUser(
@@ -243,7 +246,8 @@ class TestLogs(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        await self.db.run_sql_file(sql_init_path)
+        for schema in ['user.sql', 'watch.sql']:
+            await self.db.run_sql_file(schema_root / schema)
 
         # Add a user to the database
         new_user = users.NewUser(

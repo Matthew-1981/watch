@@ -1,0 +1,2 @@
+CREATE DATABASE IF NOT EXISTS watch_db;
+USE watch_db;
