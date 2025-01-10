@@ -3,8 +3,9 @@ from typing import Self
 
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
+from mysql.connector import Error
 
-from .common import ORMError
+from .exceptions import OperationError, ConstraintError
 
 
 class NewUser(BaseModel):
@@ -29,29 +30,35 @@ class UserRecord:
     async def update(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "UPDATE users SET user_name = %s, password_hash = %s, date_of_creation = %s WHERE user_id = %s",
-            (self.data.user_name, self.data.password_hash, self.data.date_of_creation, self.data.user_id)
-        )
+        try:
+            await cursor.execute(
+                "UPDATE users SET user_name = %s, password_hash = %s, date_of_creation = %s WHERE user_id = %s",
+                (self.data.user_name, self.data.password_hash, self.data.date_of_creation, self.data.user_id)
+            )
+        except Error as e:
+            raise ConstraintError from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "DELETE FROM users WHERE user_id = %s",
-            (self.data.user_id,)
-        )
+        try:
+            await cursor.execute(
+                "DELETE FROM users WHERE user_id = %s",
+                (self.data.user_id,)
+            )
+        except Error as e:
+            raise ConstraintError from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     @classmethod
     async def get_user_by_id(cls, cursor: MySQLCursor, user_id: int) -> Self:
         await cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         user = ExistingUser(
             user_id=row[0],
             user_name=row[1],
@@ -65,7 +72,7 @@ class UserRecord:
         await cursor.execute("SELECT * FROM users WHERE user_name = %s", (user_name,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         user = ExistingUser(
             user_id=row[0],
             user_name=row[1],
@@ -76,12 +83,15 @@ class UserRecord:
 
     @classmethod
     async def new_user(cls, cursor: MySQLCursor, user: NewUser) -> Self:
-        await cursor.execute(
-            "INSERT INTO users (user_name, password_hash, date_of_creation) VALUES (%s, %s, %s)",
-            (user.user_name, user.password_hash, user.date_of_creation)
-        )
+        try:
+            await cursor.execute(
+                "INSERT INTO users (user_name, password_hash, date_of_creation) VALUES (%s, %s, %s)",
+                (user.user_name, user.password_hash, user.date_of_creation)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
         return await cls.get_user_by_name(cursor, user.user_name)
 
 
@@ -107,29 +117,35 @@ class TokenRecord:
     async def update(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "UPDATE session_token SET user_id = %s, token = %s, expiration = %s WHERE token_id = %s",
-            (self.data.user_id, self.data.token,  self.data.expiration, self.data.token_id)
-        )
+        try:
+            await cursor.execute(
+                "UPDATE session_token SET user_id = %s, token = %s, expiration = %s WHERE token_id = %s",
+                (self.data.user_id, self.data.token,  self.data.expiration, self.data.token_id)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "DELETE FROM session_token WHERE token_id = %s",
-            (self.data.token_id,)
-        )
+        try:
+            await cursor.execute(
+                "DELETE FROM session_token WHERE token_id = %s",
+                (self.data.token_id,)
+            )
+        except Error as e:
+            raise ConstraintError from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     @classmethod
     async def get_token_by_id(cls, cursor: MySQLCursor, token_id: int) -> Self:
         await cursor.execute("SELECT * FROM session_token WHERE token_id = %s", (token_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         token = ExistingToken(
             token_id=row[0],
             user_id=row[1],
@@ -143,7 +159,7 @@ class TokenRecord:
         await cursor.execute("SELECT * FROM session_token WHERE token = %s", (token,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         token = ExistingToken(
             token_id=row[0],
             user_id=row[1],
@@ -154,10 +170,13 @@ class TokenRecord:
 
     @classmethod
     async def new_token(cls, cursor: MySQLCursor, token: NewToken) -> Self:
-        await cursor.execute(
-            "INSERT INTO session_token (user_id, token, expiration) VALUES (%s, %s, %s)",
-            (token.user_id, token.token, token.expiration)
-        )
+        try:
+            await cursor.execute(
+                "INSERT INTO session_token (user_id, token, expiration) VALUES (%s, %s, %s)",
+                (token.user_id, token.token, token.expiration)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
         return await cls.get_token_by_value(cursor, token.token)

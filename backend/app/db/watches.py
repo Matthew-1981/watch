@@ -3,8 +3,9 @@ from typing import Self
 
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
+from mysql.connector import Error
 
-from .common import ORMError
+from .exceptions import OperationError, ConstraintError
 
 
 class NewWatch(BaseModel):
@@ -29,29 +30,35 @@ class WatchRecord:
     async def update(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "UPDATE watch SET user_id = %s, name = %s, date_of_creation = %s WHERE watch_id = %s",
-            (self.data.user_id, self.data.name, self.data.date_of_creation, self.data.watch_id)
-        )
+        try:
+            await cursor.execute(
+                "UPDATE watch SET user_id = %s, name = %s, date_of_creation = %s WHERE watch_id = %s",
+                (self.data.user_id, self.data.name, self.data.date_of_creation, self.data.watch_id)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "DELETE FROM watch WHERE watch_id = %s",
-            (self.data.watch_id,)
-        )
+        try:
+            await cursor.execute(
+                "DELETE FROM watch WHERE watch_id = %s",
+                (self.data.watch_id,)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     @classmethod
     async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
         await cursor.execute("SELECT * FROM watch WHERE watch_id = %s", (watch_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         watch = ExistingWatch(
             watch_id=row[0],
             user_id=row[1],
@@ -65,7 +72,7 @@ class WatchRecord:
         await cursor.execute("SELECT * FROM watch WHERE user_id = %s AND name = %s", (user_id, name))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         watch = ExistingWatch(
             watch_id=row[0],
             user_id=row[1],
@@ -76,12 +83,15 @@ class WatchRecord:
 
     @classmethod
     async def new_watch(cls, cursor: MySQLCursor, watch: NewWatch) -> Self:
-        await cursor.execute(
-            "INSERT INTO watch (user_id, name, date_of_creation) VALUES (%s, %s, %s)",
-            (watch.user_id, watch.name, watch.date_of_creation)
-        )
+        try:
+            await cursor.execute(
+                "INSERT INTO watch (user_id, name, date_of_creation) VALUES (%s, %s, %s)",
+                (watch.user_id, watch.name, watch.date_of_creation)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
         return await cls.get_watch_by_name(cursor, watch.user_id, watch.name)
 
 
@@ -108,12 +118,15 @@ class LogRecord:
     async def update(self, cursor: MySQLCursor):
         if not self.check_integrity():
             raise RuntimeError
-        await cursor.execute(
-            "UPDATE log SET watch_id = %s, cycle = %s, timedate = %s, measure = %s WHERE log_id = %s",
-            (self.data.watch_id, self.data.cycle, self.data.timedate, self.data.measure, self.data.log_id)
-        )
+        try:
+            await cursor.execute(
+                "UPDATE log SET watch_id = %s, cycle = %s, timedate = %s, measure = %s WHERE log_id = %s",
+                (self.data.watch_id, self.data.cycle, self.data.timedate, self.data.measure, self.data.log_id)
+            )
+        except Error as e:
+            raise ConstraintError from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -123,14 +136,14 @@ class LogRecord:
             (self.data.log_id,)
         )
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
 
     @classmethod
     async def get_log_by_id(cls, cursor: MySQLCursor, log_id: int) -> Self:
         await cursor.execute("SELECT * FROM log WHERE log_id = %s", (log_id,))
         row = await cursor.fetchone()
         if row is None:
-            raise ORMError()
+            raise OperationError()
         log = ExistingLog(
             log_id=row[0],
             watch_id=row[1],
@@ -142,12 +155,15 @@ class LogRecord:
 
     @classmethod
     async def new_log(cls, cursor: MySQLCursor, log: NewLog) -> Self:
-        await cursor.execute(
-            "INSERT INTO log (watch_id, cycle, timedate, measure) VALUES (%s, %s, %s, %s)",
-            (log.watch_id, log.cycle, log.timedate, log.measure)
-        )
+        try:
+            await cursor.execute(
+                "INSERT INTO log (watch_id, cycle, timedate, measure) VALUES (%s, %s, %s, %s)",
+                (log.watch_id, log.cycle, log.timedate, log.measure)
+            )
+        except Error as e:
+            raise ConstraintError() from e
         if cursor.rowcount != 1:
-            raise ORMError()
+            raise OperationError()
         return await cls.get_log_by_id(cursor, cursor.lastrowid)
 
     @classmethod
@@ -176,4 +192,4 @@ class LogRecord:
             (watch_id, cycle)
         )
         if cursor.rowcount == -1:
-            raise ORMError()
+            raise OperationError()

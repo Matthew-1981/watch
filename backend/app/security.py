@@ -1,11 +1,11 @@
 import secrets
 from datetime import datetime, timedelta
-from typing import Any, Callable, Coroutine
 
 from passlib.context import CryptContext
+from fastapi import HTTPException, status
 from mysql.connector.aio.cursor import MySQLCursor
 
-from .db import UserRecord, TokenRecord, NewToken, DBAccess
+from .db import UserRecord, TokenRecord, NewToken, DBAccess, OperationError
 from .messages import LoggedInUser
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -30,20 +30,29 @@ async def create_token(cursor: MySQLCursor, user_id: int, expiration_minutes: in
 
 async def update_token(cursor: MySQLCursor, token: TokenRecord, expiration_minutes: int) -> TokenRecord:
     new_expiration = datetime.now() + timedelta(minutes=expiration_minutes)
-    token.data.expiration = new_expiration
+    if new_expiration > token.data.expiration:
+        token.data.expiration = new_expiration
     await token.update(cursor)
     return token
 
 
-def create_get_user_function(db_access: DBAccess) -> Callable[[LoggedInUser], Coroutine[Any, Any, UserRecord]]:
+class GetUserCreator:
 
-    async def get_user(request: LoggedInUser) -> UserRecord:
-        async with db_access.access() as wp:
-            token = await TokenRecord.get_token_by_value(wp.cursor, request.auth.token)
+    def __init__(self, db_access: DBAccess):
+        self.access = db_access
+
+    async def get_user(self, request: LoggedInUser) -> UserRecord:
+        async with self.access.access() as wp:
+            try:
+                token = await TokenRecord.get_token_by_value(wp.cursor, request.auth.token)
+            except OperationError:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid or expired.")
             if token.data.expiration < datetime.now():
-                raise ValueError
-            await update_token(wp.cursor, token, expiration_minutes=30)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Expired token.")
+            await update_token(wp.cursor, token, request.auth.expiration_minutes)
             user = await UserRecord.get_user_by_id(wp.cursor, token.data.user_id)
+            await wp.commit()
         return user
 
-    return get_user
+    async def __call__(self, request: LoggedInUser) -> UserRecord:
+        return await self.get_user(request)

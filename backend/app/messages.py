@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class Auth(BaseModel):
     token: str
+    expiration_minutes: int
 
 
 class LoggedInUser(BaseModel):
