@@ -1,4 +1,7 @@
-from fastapi import FastAPI, Request, HTTPException
+from datetime import datetime
+
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import status
 from mysql.connector.errors import IntegrityError
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -6,11 +9,17 @@ from starlette.middleware.cors import CORSMiddleware
 import settings
 from .data_manipulation.interpolation import LinearInterpolation
 from .data_manipulation.log import WatchLogFrame
-from .db_access import DBAccess
-from .utils import convert_table
+from . import security
+from . import messages
+from . import responses
+from .db import DBAccess, UserRecord, WatchRecord, LogRecord, NewWatch
+from .db import exceptions
+from .responses import TokenResponse
+from .security import AuthBundle
 
 app = FastAPI()
 db = DBAccess(settings.DATABASE_CONFIG)
+sec_functions = security.SecurityCreator(db)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,57 +30,101 @@ app.add_middleware(
 )
 
 
-@app.get('/watchlist')
-async def watchlist(request: Request):
+@app.post('/register')
+async def register_user(request: messages.UserRegisterMessage):
+    user = await sec_functions.register_user(request)
+    return responses.UserCreationResponse(
+        user_name=user.data.user_name,
+        creation_date=user.data.date_of_creation
+    )
+
+
+@app.post('/login')
+async def user_login(request: messages.UserLoginMessage) -> responses.TokenResponse:
+    _, token = await sec_functions.login_user(request)
+    return TokenResponse(
+        token=token.data.token,
+        expiration_date=token.data.expiration
+    )
+
+
+@app.get('/watch/list')
+async def watchlist(request: messages.UserLoginMessage, auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)):
     async with db.access() as wp:
-        await wp.cursor.execute('SELECT watch_id, name FROM info')
-        watches = convert_table(('id', 'name'), await wp.cursor.fetchall())
+        watches = await WatchRecord.get_all_watches(wp.cursor, auth_bundle.user)
+        out: list[responses.WatchElementResponse]
         for watch in watches:
-            await wp.cursor.execute('SELECT DISTINCT cycle FROM logs WHERE watch_id = %s',
-                                    (watch['id'],))
-            watch['cycles'] = [t[0] for t in await wp.cursor.fetchall()]
-    return watches
+            cycles = await LogRecord.get_cycles(wp.cursor, watch.data.watch_id)
+            out.append(responses.WatchElementResponse(
+                name=watch.data.name,
+                date_of_creation=watch.data.date_of_creation,
+                cycles=cycles
+            ))
+    return responses.WatchListResponse(
+        auth=responses.AuthResponse.parse(auth_bundle),
+        watches=out
+    )
 
 
-class AddWatchRequest(BaseModel):
-    name: str
+@app.post('/watch/add')
+async def add_watch(
+        request: messages.EditWatchMessage,
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
+) -> responses.WatchEditResponse:
+    async with db.access() as wp:
+        new_watch = NewWatch(
+            user_id=auth_bundle.user.data.user_id,
+            name=request.name,
+            date_of_creation=datetime.now()
+        )
+        try:
+            watch = await WatchRecord.new_watch(wp.cursor, new_watch)
+        except exceptions.ConstraintError:
+            await wp.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Watch '{request.name}' already exists.")
+        await wp.commit()
+    return responses.WatchEditResponse(
+        auth=responses.AuthResponse.parse(auth_bundle),
+        name=watch.data.name,
+        date_of_creation=watch.data.date_of_creation
+    )
 
 
-@app.post('/watchlist')
-async def add_watch(request: AddWatchRequest):
+@app.delete('/watch/delete')
+async def delete_watch(
+        request: messages.EditWatchMessage,
+        auth_bundle: AuthBundle = Depends(sec_functions.get_user)
+) -> responses.WatchEditResponse:
     async with db.access() as wp:
         try:
-            await wp.cursor.execute('INSERT INTO info (name) VALUES (%s)', (request.name,))
-        except IntegrityError:
-            raise HTTPException(status_code=400, detail='Failed to insert.')
+            watch = await WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.name)
+        except exceptions.OperationError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Watch {request.name} does not exits.")
+        await watch.delete(wp.cursor)
         await wp.commit()
-    return {'status': 'ok'}
+    return responses.WatchEditResponse(
+        auth=responses.AuthResponse.parse(auth_bundle),
+        name=watch.data.name,
+        date_of_creation=watch.data.date_of_creation
+    )
 
 
-@app.delete('/watchlist/{watch_id}')
-async def delete_watch(request: Request, watch_id: int):
+@app.get('/logs/list')
+async def log_list(
+        request: messages.SpecifyWatchDataMessage,
+        auth_bundle: AuthBundle = Depends(sec_functions.get_user)
+):
     async with db.access() as wp:
-        await wp.cursor.execute('DELETE FROM logs WHERE watch_id = %s', (watch_id,))
-        await wp.cursor.execute('DELETE FROM info WHERE watch_id = %s', (watch_id,))
-        if wp.cursor.rowcount == 0:
-            raise HTTPException(status_code=400, detail='Watch not found.')
-        await wp.commit()
-    return {'status': 'ok'}
-
-
-@app.get('/measurements/{watch_id}/{cycle}')
-async def measurements(request: Request, watch_id: int, cycle: int):
-    async with db.access() as wp:
-        await wp.cursor.execute(
-            '''
-            SELECT log_id, timedate, measure
-            FROM logs
-            WHERE watch_id = %s AND cycle = %s
-            ORDER BY timedate;
-            ''',
-            (watch_id, cycle)
-        )
-        table = await wp.cursor.fetchall()
+        try:
+            watch = await WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+        except exceptions.OperationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Watch {request.watch_name} not found."
+            )
+        logs = await LogRecord.get_logs(wp.cursor, watch.data.watch_id, request.cycle)
+    table = [(log.data.log_id, log.data.timedate, log.data.measure) for log in logs]
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
     return frame.data
 
