@@ -4,4 +4,6 @@ starlette
 uvicorn
 pydantic
 mysql-connector-python
+httpx
+bcrypt==4.0.1
 passlib

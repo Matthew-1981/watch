@@ -54,6 +54,7 @@ class CreateUserCreator:
             except ConstraintError:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail=f"User {request.user_name} already exists.")
+            await wp.commit()
         return user
 
     async def __call__(self, request: messages.UserRegisterMessage) -> UserRecord:
@@ -87,6 +88,9 @@ class LoginUserCreator:
 class AuthBundle(BaseModel):
     user: UserRecord
     token: TokenRecord
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class GetUserCreator:

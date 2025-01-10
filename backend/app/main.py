@@ -6,20 +6,13 @@ from mysql.connector.errors import IntegrityError
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
-import settings
+from . import settings, security, messages, responses, db
 from .data_manipulation.interpolation import LinearInterpolation
 from .data_manipulation.log import WatchLogFrame
-from . import security
-from . import messages
-from . import responses
-from .db import DBAccess, UserRecord, WatchRecord, LogRecord, NewWatch
-from .db import exceptions
-from .responses import TokenResponse
-from .security import AuthBundle
 
 app = FastAPI()
-db = DBAccess(settings.DATABASE_CONFIG)
-sec_functions = security.SecurityCreator(db)
+db_access = db.DBAccess(settings.DATABASE_CONFIG)
+sec_functions = security.SecurityCreator(db_access)
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,19 +35,22 @@ async def register_user(request: messages.UserRegisterMessage):
 @app.post('/login')
 async def user_login(request: messages.UserLoginMessage) -> responses.TokenResponse:
     _, token = await sec_functions.login_user(request)
-    return TokenResponse(
+    return responses.TokenResponse(
         token=token.data.token,
         expiration_date=token.data.expiration
     )
 
 
 @app.get('/watch/list')
-async def watchlist(request: messages.UserLoginMessage, auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)):
-    async with db.access() as wp:
-        watches = await WatchRecord.get_all_watches(wp.cursor, auth_bundle.user)
+async def watchlist(
+        request: messages.UserLoginMessage,
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
+) -> responses.WatchListResponse:
+    async with db_access.access() as wp:
+        watches = await db.WatchRecord.get_all_watches(wp.cursor, auth_bundle.user)
         out: list[responses.WatchElementResponse]
         for watch in watches:
-            cycles = await LogRecord.get_cycles(wp.cursor, watch.data.watch_id)
+            cycles = await db.LogRecord.get_cycles(wp.cursor, watch.data.watch_id)
             out.append(responses.WatchElementResponse(
                 name=watch.data.name,
                 date_of_creation=watch.data.date_of_creation,
@@ -71,15 +67,15 @@ async def add_watch(
         request: messages.EditWatchMessage,
         auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ) -> responses.WatchEditResponse:
-    async with db.access() as wp:
-        new_watch = NewWatch(
+    async with db_access.access() as wp:
+        new_watch = db.NewWatch(
             user_id=auth_bundle.user.data.user_id,
             name=request.name,
             date_of_creation=datetime.now()
         )
         try:
-            watch = await WatchRecord.new_watch(wp.cursor, new_watch)
-        except exceptions.ConstraintError:
+            watch = await db.WatchRecord.new_watch(wp.cursor, new_watch)
+        except db.exceptions.ConstraintError:
             await wp.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail=f"Watch '{request.name}' already exists.")
@@ -91,15 +87,15 @@ async def add_watch(
     )
 
 
-@app.delete('/watch/delete')
+@app.post('/watch/delete')
 async def delete_watch(
         request: messages.EditWatchMessage,
-        auth_bundle: AuthBundle = Depends(sec_functions.get_user)
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ) -> responses.WatchEditResponse:
-    async with db.access() as wp:
+    async with db_access.access() as wp:
         try:
-            watch = await WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.name)
-        except exceptions.OperationError:
+            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.name)
+        except db.exceptions.OperationError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Watch {request.name} does not exits.")
         await watch.delete(wp.cursor)
         await wp.commit()
@@ -113,17 +109,17 @@ async def delete_watch(
 @app.get('/logs/list')
 async def log_list(
         request: messages.SpecifyWatchDataMessage,
-        auth_bundle: AuthBundle = Depends(sec_functions.get_user)
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ):
-    async with db.access() as wp:
+    async with db_access.access() as wp:
         try:
-            watch = await WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
-        except exceptions.OperationError:
+            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+        except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Watch {request.watch_name} not found."
             )
-        logs = await LogRecord.get_logs(wp.cursor, watch.data.watch_id, request.cycle)
+        logs = await db.LogRecord.get_logs(wp.cursor, watch.data.watch_id, request.cycle)
     table = [(log.data.log_id, log.data.timedate, log.data.measure) for log in logs]
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
     return frame.data
@@ -131,7 +127,7 @@ async def log_list(
 
 @app.get('/stats/{watch_id}/{cycle}')
 async def stats(request: Request, watch_id: int, cycle: int):
-    async with db.access() as wp:
+    async with db_access.access() as wp:
         await wp.cursor.execute(
             '''
             SELECT log_id, timedate, measure
@@ -161,7 +157,7 @@ async def stats(request: Request, watch_id: int, cycle: int):
 
 @app.delete('/measurements/{log_id}')
 async def delete_measurement(request: Request, log_id: int):
-    async with db.access() as wp:
+    async with db_access.access() as wp:
         await wp.cursor.execute('DELETE FROM logs WHERE log_id = %s', (log_id,))
         if wp.cursor.rowcount == 0:
             raise HTTPException(status_code=400, detail='Log not found.')
@@ -176,7 +172,7 @@ class CreateMeasurementRequest(BaseModel):
 
 @app.post('/measurements/{watch_id}/{cycle}')
 async def add_measurement(request: CreateMeasurementRequest, watch_id: int, cycle: int):
-    async with db.access() as wp:
+    async with db_access.access() as wp:
         try:
             await wp.cursor.execute(
                 '''

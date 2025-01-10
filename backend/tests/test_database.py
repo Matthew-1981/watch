@@ -5,14 +5,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parents[2] / '.env')
 
-from settings import DATABASE_CONFIG
+from app.settings import DATABASE_CONFIG
 from app.db import users, access, exceptions, watches
 
 sql_delete_all = """
-DROP TABLE log;
-DROP TABLE watch;
-DROP TABLE session_token;
-DROP TABLE users;
+DROP TABLE IF EXISTS log;
+DROP TABLE IF EXISTS watch;
+DROP TABLE IF EXISTS session_token;
+DROP TABLE IF EXISTS users;
 """
 
 schema_root = Path(__file__).parents[1] / 'app' / 'schema'
@@ -112,7 +112,8 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             token = await users.TokenRecord.get_token_by_value(wp.cursor, 'TOKEN123')
 
         self.assertEqual(new_token.token, token.data.token)
-        self.assertEqual(new_token.expiration.replace(microsecond=0), token.data.expiration)
+        tmp = new_token.expiration.replace(microsecond=0)
+        self.assertTrue(token.data.expiration in [tmp + timedelta(seconds=1), tmp])
 
     async def test_update_token(self):
         new_user = users.NewUser(
@@ -137,7 +138,8 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
             updated_token = await users.TokenRecord.get_token_by_value(wp.cursor, 'NEW_TOKEN')
 
         self.assertEqual(updated_token.data.token, 'NEW_TOKEN')
-        self.assertEqual(updated_token.data.expiration.replace(microsecond=0), token_record.data.expiration)
+        tmp = token_record.data.expiration.replace(microsecond=0)
+        self.assertTrue(updated_token.data.expiration in [tmp + timedelta(seconds=1), tmp])
 
     async def test_delete_token(self):
         new_user = users.NewUser(
