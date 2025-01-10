@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / '.env')
+load_dotenv(Path(__file__).parents[2] / '.env.tests')
 from app.main import app
 from app.db import DBAccess
 from app.settings import DATABASE_CONFIG

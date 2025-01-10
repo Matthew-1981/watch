@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parents[2] / '.env')
+load_dotenv(Path(__file__).parents[2] / '.env.tests')
 
 from app.settings import DATABASE_CONFIG
 from app.db import users, access, exceptions, watches

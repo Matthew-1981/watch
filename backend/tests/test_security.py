@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parents[2] / '.env')
+load_dotenv(Path(__file__).parents[2] / '.env.tests')
 
 from app.settings import DATABASE_CONFIG
 from app.security import GetUserCreator, create_token, LoginUserCreator, CreateUserCreator
