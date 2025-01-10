@@ -4,9 +4,10 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from mysql.connector.aio.cursor import MySQLCursor
+from pydantic import BaseModel
 
-from .db import UserRecord, TokenRecord, NewToken, DBAccess, OperationError
-from .messages import LoggedInUser
+from .db import UserRecord, TokenRecord, NewToken, DBAccess, OperationError, NewUser, ConstraintError
+from . import messages
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -36,12 +37,64 @@ async def update_token(cursor: MySQLCursor, token: TokenRecord, expiration_minut
     return token
 
 
+class CreateUserCreator:
+
+    def __init__(self, db_access: DBAccess):
+        self.access = db_access
+
+    async def create_user(self, request: messages.UserRegisterMessage) -> UserRecord:
+        new_user = NewUser(
+            user_name=request.user_name,
+            password_hash=hash_password(request.password),
+            date_of_creation=datetime.now()
+        )
+        async with self.access.access() as wp:
+            try:
+                user = await UserRecord.new_user(wp.cursor, new_user)
+            except ConstraintError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"User {request.user_name} already exists.")
+        return user
+
+    async def __call__(self, request: messages.UserRegisterMessage) -> UserRecord:
+        return await self.create_user(request)
+
+
+
+class LoginUserCreator:
+
+    def __init__(self, db_access: DBAccess):
+        self.access = db_access
+
+    async def login_user(self, request: messages.UserLoginMessage) -> tuple[UserRecord, TokenRecord]:
+        async with self.access.access() as wp:
+            try:
+                user = await UserRecord.get_user_by_name(wp.cursor, request.user_name)
+            except OperationError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"No user with name '{request.user_name}'.")
+            if not verify_password(request.password, user.data.password_hash):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                    detail=f"Wrong password for user {request.user_name}.")
+            token = await create_token(wp.cursor, user.data.user_id, request.expiration_minutes)
+            await wp.commit()
+        return user, token
+
+    async def __call__(self, request: messages.UserLoginMessage) -> tuple[UserRecord, TokenRecord]:
+        return await self.login_user(request)
+
+
+class AuthBundle(BaseModel):
+    user: UserRecord
+    token: TokenRecord
+
+
 class GetUserCreator:
 
     def __init__(self, db_access: DBAccess):
         self.access = db_access
 
-    async def get_user(self, request: LoggedInUser) -> UserRecord:
+    async def get_user(self, request: messages.LoggedInUserMessage) -> AuthBundle:
         async with self.access.access() as wp:
             try:
                 token = await TokenRecord.get_token_by_value(wp.cursor, request.auth.token)
@@ -52,7 +105,15 @@ class GetUserCreator:
             await update_token(wp.cursor, token, request.auth.expiration_minutes)
             user = await UserRecord.get_user_by_id(wp.cursor, token.data.user_id)
             await wp.commit()
-        return user
+        return AuthBundle(user=user, token=token)
 
-    async def __call__(self, request: LoggedInUser) -> UserRecord:
+    async def __call__(self, request: messages.LoggedInUserMessage) -> AuthBundle:
         return await self.get_user(request)
+
+
+class SecurityCreator:
+
+    def __init__(self, db_access: DBAccess):
+        self.get_user = GetUserCreator(db_access)
+        self.login_user = LoginUserCreator(db_access)
+        self.register_user = CreateUserCreator(db_access)

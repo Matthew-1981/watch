@@ -37,8 +37,8 @@ class UserRecord:
             )
         except Error as e:
             raise ConstraintError from e
-        if cursor.rowcount != 1:
-            raise OperationError()
+        # if cursor.rowcount != 1:
+        #     raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -124,8 +124,8 @@ class TokenRecord:
             )
         except Error as e:
             raise ConstraintError() from e
-        if cursor.rowcount != 1:
-            raise OperationError()
+        # if cursor.rowcount != 1:
+        #     raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():

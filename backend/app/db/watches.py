@@ -6,6 +6,7 @@ from mysql.connector.aio.cursor import MySQLCursor
 from mysql.connector import Error
 
 from .exceptions import OperationError, ConstraintError
+from .users import UserRecord
 
 
 class NewWatch(BaseModel):
@@ -37,8 +38,8 @@ class WatchRecord:
             )
         except Error as e:
             raise ConstraintError() from e
-        if cursor.rowcount != 1:
-            raise OperationError()
+        # if cursor.rowcount != 1:
+        #     raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -52,6 +53,22 @@ class WatchRecord:
             raise ConstraintError() from e
         if cursor.rowcount != 1:
             raise OperationError()
+
+    @classmethod
+    async def get_all_watches(cls, cursor: MySQLCursor, user: UserRecord) -> tuple[Self, ...]:
+        await cursor.execute("SELECT * FROM watch WHERE user_id = %s ORDER BY date_of_creation ASC",
+                             (user.data.user_id,))
+        rows = await cursor.fetchall()
+        out = []
+        for row in rows:
+            current = ExistingWatch(
+                watch_id=row[0],
+                user_id=row[1],
+                name=row[2],
+                date_of_creation=row[3]
+            )
+            out.append(current)
+        return tuple(out)
 
     @classmethod
     async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
@@ -125,8 +142,8 @@ class LogRecord:
             )
         except Error as e:
             raise ConstraintError from e
-        if cursor.rowcount != 1:
-            raise OperationError()
+        # if cursor.rowcount != 1:
+        #     raise OperationError()
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -165,6 +182,15 @@ class LogRecord:
         if cursor.rowcount != 1:
             raise OperationError()
         return await cls.get_log_by_id(cursor, cursor.lastrowid)
+
+    @classmethod
+    async def get_cycles(cls, cursor: MySQLCursor, watch_id: int) ->  list[int]:
+        await cursor.execute(
+            "SELECT DISTINCT cycle FROM log WHERE watch_id = %s ORDER BY cycle ASC",
+            (watch_id,)
+        )
+        return [i for (i,) in await cursor.fetchall()]
+
 
     @classmethod
     async def get_logs(cls, cursor: MySQLCursor, watch_id: int, cycle: int) -> tuple[Self, ...]:
