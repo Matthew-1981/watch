@@ -1,7 +1,7 @@
 from typing import Self
 from datetime import datetime
 
-from .security import AuthBundle
+from app.security import AuthBundle
 from pydantic import BaseModel
 
 

@@ -3,7 +3,8 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi import status
 
-from . import settings, security, messages, responses, db
+from communication import messages, responses
+from . import settings, security, db
 from .data_manipulation.interpolation import LinearInterpolation
 from .data_manipulation.log import WatchLogFrame
 

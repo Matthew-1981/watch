@@ -7,7 +7,7 @@ from mysql.connector.aio.cursor import MySQLCursor
 from pydantic import BaseModel
 
 from .db import UserRecord, TokenRecord, NewToken, DBAccess, OperationError, NewUser, ConstraintError
-from . import messages
+from communication import messages
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

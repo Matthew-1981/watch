@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parents[2] / '.env.tests')
 
 from app.settings import DATABASE_CONFIG
-from app.db import users, access, exceptions, watches
+from app.db import users, access, exceptions, watches, schema_files
 
 sql_delete_all = """
 DROP TABLE IF EXISTS log;
@@ -15,16 +15,14 @@ DROP TABLE IF EXISTS session_token;
 DROP TABLE IF EXISTS users;
 """
 
-schema_root = Path(__file__).parents[1] / 'app' / 'schema'
-
 
 class TestUsers(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db.run_sql_file(schema)
 
     async def test_insert_user(self):
         new_user = users.NewUser(
@@ -89,8 +87,8 @@ class TestTokens(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db.run_sql_file(schema)
 
     async def test_insert_token(self):
         new_user = users.NewUser(
@@ -178,8 +176,8 @@ class TestWatches(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db.run_sql_file(schema)
 
         # Add a user to the database
         new_user = users.NewUser(
@@ -254,8 +252,8 @@ class TestLogs(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db = access.DBAccess(DATABASE_CONFIG)
         await self.db.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db.run_sql_file(schema)
 
         # Add a user to the database
         new_user = users.NewUser(

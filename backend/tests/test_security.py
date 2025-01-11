@@ -8,8 +8,8 @@ load_dotenv(Path(__file__).parents[2] / '.env.tests')
 
 from app.settings import DATABASE_CONFIG
 from app.security import GetUserCreator, create_token, LoginUserCreator, CreateUserCreator
-from app.db import DBAccess, UserRecord, NewUser
-from app.messages import LoggedInUserMessage, AuthMessage, UserLoginMessage, UserRegisterMessage
+from app.db import DBAccess, UserRecord, schema_files
+from communication.messages import LoggedInUserMessage, AuthMessage, UserLoginMessage, UserRegisterMessage
 
 sql_delete_all = """
 DROP TABLE IF EXISTS log;
@@ -18,15 +18,14 @@ DROP TABLE IF EXISTS session_token;
 DROP TABLE IF EXISTS users;
 """
 
-schema_root = Path(__file__).parents[1] / 'app' / 'schema'
 
 class TestGetUserCreator(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
         self.get_user_creator = GetUserCreator(self.db_access)
         self.create_user_creator = CreateUserCreator(self.db_access)
         request = UserRegisterMessage(user_name='test_user', password='test_password')
@@ -70,8 +69,8 @@ class TestLoginUserCreator(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
         self.login_user_creator = LoginUserCreator(self.db_access)
         self.create_user_creator = CreateUserCreator(self.db_access)
         request = UserRegisterMessage(user_name='test_user', password='test_password')
@@ -108,8 +107,8 @@ class TestCreateUserCreator(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
         self.create_user_creator = CreateUserCreator(self.db_access)
 
     async def asyncTearDown(self):

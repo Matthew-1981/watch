@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parents[2] / '.env.tests')
 from app.main import app
-from app.db import DBAccess
+from app.db import DBAccess, schema_files
 from app.settings import DATABASE_CONFIG
-from app import messages
+from communication import messages
 
 client = TestClient(app)
 
@@ -19,15 +19,13 @@ DROP TABLE IF EXISTS session_token;
 DROP TABLE IF EXISTS users;
 """
 
-schema_root = Path(__file__).parents[1] / 'app' / 'schema'
-
 class TestUserCRUD(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
 
     async def test_register_user(self):
         response = client.post('/register', json={
@@ -70,8 +68,8 @@ class TestWatchCRUD(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
         await self.test_register_and_login_user()
 
     async def test_register_and_login_user(self):
@@ -137,8 +135,8 @@ class TestLogCRUD(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db_access = DBAccess(DATABASE_CONFIG)
         await self.db_access.run_sql(sql_delete_all)
-        for schema in ['user.sql', 'watch.sql']:
-            await self.db_access.run_sql_file(schema_root / schema)
+        for schema in schema_files:
+            await self.db_access.run_sql_file(schema)
         await self.test_register_and_login_user()
         await self.add_watch()
 
