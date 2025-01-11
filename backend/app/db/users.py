@@ -1,10 +1,12 @@
 from datetime import datetime
-from typing import Self
+from typing import Self, NoReturn
+import asyncio
 
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
 from mysql.connector import Error
 
+from .access import DBAccess
 from .exceptions import OperationError, ConstraintError
 
 
@@ -180,3 +182,26 @@ class TokenRecord:
         if cursor.rowcount != 1:
             raise OperationError()
         return await cls.get_token_by_value(cursor, token.token)
+
+
+class DeleteTokenDaemonCreator:
+
+    def __init__(self, db_access: DBAccess, interval_minutes: int):
+        self.access = db_access
+        self.interval = interval_minutes * 60
+
+    async def delete_old_tokens(self):
+        async with self.access.access() as wp:
+            await wp.cursor.execute(
+                'DELETE FROM session_token WHERE expiration < %s',
+                (datetime.now(),)
+            )
+            await wp.commit()
+
+    async def daemon(self) -> NoReturn:
+        while True:
+            await self.delete_old_tokens()
+            await asyncio.sleep(self.interval)
+
+    async def __call__(self) -> NoReturn:
+        await self.daemon()

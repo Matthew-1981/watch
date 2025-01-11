@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Depends
@@ -8,10 +10,16 @@ from . import settings, security, db
 from .data_manipulation.interpolation import LinearInterpolation
 from .data_manipulation.log import WatchLogFrame
 
-app = FastAPI()
 db_access = db.DBAccess(settings.DATABASE_CONFIG)
 sec_functions = security.SecurityCreator(db_access)
+token_daemon = db.DeleteTokenDaemonCreator(db_access, 5)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(token_daemon())
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 @app.post('/register')
 async def register_user(request: messages.UserRegisterMessage):
