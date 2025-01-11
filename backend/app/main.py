@@ -46,6 +46,7 @@ async def logout_user(
 ) -> responses.LogOutResponse:
     async with db_access.access() as wp:
         await auth_bundle.token.delete(wp.cursor)
+        await wp.commit()
     return responses.LogOutResponse(
         user=auth_bundle.user.data.user_name,
         token=auth_bundle.token.data.token
@@ -67,6 +68,7 @@ async def terminate_user(
 ) -> responses.LogOutResponse:
     async with db_access.access() as wp:
         await auth_bundle.user.delete(wp.cursor)
+        await wp.commit()
     return responses.LogOutResponse(
         user=auth_bundle.user.data.user_name,
         token=auth_bundle.token.data.token
