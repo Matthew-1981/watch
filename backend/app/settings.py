@@ -8,8 +8,6 @@ def _get_env_raise(env_name: str) -> str:
     return value
 
 
-ORIGINS = _get_env_raise('ORIGINS').split(';')
-
 DATABASE_CONFIG = {
     'user': _get_env_raise('MYSQL_USER'),
     'password': _get_env_raise('MYSQL_PASSWORD'),
