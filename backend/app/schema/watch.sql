@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS watch
 (
     watch_id         INT AUTO_INCREMENT PRIMARY KEY,
     user_id          INT NOT NULL,
-    name             VARCHAR(50),
+    name             VARCHAR(32),
     date_of_creation DATETIME,
     FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
     CONSTRAINT UNIQUE (user_id, name)

@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS users
 (
     user_id          INT AUTO_INCREMENT PRIMARY KEY,
-    user_name        VARCHAR(50) UNIQUE NOT NULL,
-    password_hash    VARCHAR(60)        NOT NULL,
+    user_name        VARCHAR(32) UNIQUE NOT NULL,
+    password_hash    VARCHAR(64)        NOT NULL,
     date_of_creation DATETIME
 );
 

@@ -25,6 +25,11 @@ class LoggedInResponse(BaseResponse):
     auth: AuthResponse
 
 
+class LogOutResponse(BaseResponse):
+    user: str
+    token: str
+
+
 class TokenResponse(BaseResponse):
     token: str
     expiration_date: datetime
@@ -48,3 +53,25 @@ class WatchListResponse(LoggedInResponse):
 class WatchEditResponse(LoggedInResponse):
     name: str
     date_of_creation: datetime
+
+
+class LogResponse(BaseResponse):
+    log_id: int | None
+    time: datetime
+    measure: float
+    difference: float | None
+
+
+class LogListResponse(LoggedInResponse):
+    logs: list[LogResponse]
+
+
+class StatsResponse(LoggedInResponse):
+    average: float | None
+    deviation: float | None
+    delta: float | None
+
+class LogAddedResponse(LoggedInResponse):
+    log_id: int
+    time: datetime
+    measure: float

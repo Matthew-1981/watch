@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 
 class BaseMessage(BaseModel):
@@ -7,7 +9,7 @@ class BaseMessage(BaseModel):
 
 class AuthMessage(BaseMessage):
     token: str
-    expiration_minutes: int
+    expiration_minutes: int = Field(..., gt=5)
 
 
 class LoggedInUserMessage(BaseMessage):
@@ -15,18 +17,27 @@ class LoggedInUserMessage(BaseMessage):
 
 
 class UserRegisterMessage(BaseMessage):
-    user_name: str
-    password: str
+    user_name: str = Field(..., pattern=r'^[a-zA-Z0-9_]{4,32}$')
+    password: str = Field(..., pattern=r'^[A-Za-z0-9@$!%*?&_-]{8,64}$')
 
 
 class UserLoginMessage(UserRegisterMessage):
-    expiration_minutes: int
+    expiration_minutes: int = Field(..., gt=5)
 
 
 class EditWatchMessage(LoggedInUserMessage):
-    name: str
+    name: str = Field(..., pattern=r'^[a-zA-Z0-9_ -]{4,32}$')
 
 
 class SpecifyWatchDataMessage(LoggedInUserMessage):
-    watch_name: str
-    cycle: int
+    watch_name: str = Field(..., pattern=r'^[a-zA-Z0-9_ -]{4,32}$')
+    cycle: int = Field(..., gt=-1)
+
+
+class SpecifyLogDataMessage(SpecifyWatchDataMessage):
+    log_id: int = Field(..., gt=-1)
+
+
+class CreateMeasurementMessage(SpecifyWatchDataMessage):
+    datetime: datetime
+    measure: float
