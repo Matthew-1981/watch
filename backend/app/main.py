@@ -39,6 +39,19 @@ async def login_user(request: messages.UserLoginMessage) -> responses.TokenRespo
     )
 
 
+@app.post('/logout')
+async def logout_user(
+        request: messages.LoggedInUserMessage,
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
+) -> responses.LogOutResponse:
+    async with db_access.access() as wp:
+        await auth_bundle.token.delete(wp.cursor)
+    return responses.LogOutResponse(
+        user=auth_bundle.user.data.user_name,
+        token=auth_bundle.token.data.token
+    )
+
+
 @app.post('/refresh')
 async def refresh_user(
         request: messages.LoggedInUserMessage,
