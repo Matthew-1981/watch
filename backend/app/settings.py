@@ -1,4 +1,8 @@
 import os
+import dotenv
+
+
+dotenv.load_dotenv()
 
 
 def _get_env_raise(env_name: str) -> str:

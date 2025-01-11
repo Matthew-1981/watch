@@ -3,23 +3,16 @@ import json
 from datetime import datetime
 from pathlib import Path
 from fastapi.testclient import TestClient
-from dotenv import load_dotenv
 import subprocess
 
-load_dotenv(Path(__file__).parents[2] / '.env.tests')
+from .db_tests_settings import sql_delete_all
+
 from app.main import app
 from app.db import DBAccess, schema_files
 from app.settings import DATABASE_CONFIG
 from communication import messages
 
 client = TestClient(app)
-
-sql_delete_all = """
-DROP TABLE IF EXISTS log;
-DROP TABLE IF EXISTS watch;
-DROP TABLE IF EXISTS session_token;
-DROP TABLE IF EXISTS users;
-"""
 
 class TestWatchAndLogOperations(unittest.IsolatedAsyncioTestCase):
 

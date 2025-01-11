@@ -1,22 +1,14 @@
 import unittest
-from pathlib import Path
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parents[2] / '.env.tests')
+
+from .db_tests_settings import sql_delete_all
 
 from app.settings import DATABASE_CONFIG
 from app.security import GetUserCreator, create_token, LoginUserCreator, CreateUserCreator
 from app.db import DBAccess, UserRecord, schema_files
 from communication.messages import LoggedInUserMessage, AuthMessage, UserLoginMessage, UserRegisterMessage
-
-sql_delete_all = """
-DROP TABLE IF EXISTS log;
-DROP TABLE IF EXISTS watch;
-DROP TABLE IF EXISTS session_token;
-DROP TABLE IF EXISTS users;
-"""
 
 
 class TestGetUserCreator(unittest.IsolatedAsyncioTestCase):

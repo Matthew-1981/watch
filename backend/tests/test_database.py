@@ -1,19 +1,10 @@
 import unittest
 from datetime import datetime, timedelta
-from pathlib import Path
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parents[2] / '.env.tests')
+from .db_tests_settings import sql_delete_all
 
 from app.settings import DATABASE_CONFIG
 from app.db import users, access, exceptions, watches, schema_files
-
-sql_delete_all = """
-DROP TABLE IF EXISTS log;
-DROP TABLE IF EXISTS watch;
-DROP TABLE IF EXISTS session_token;
-DROP TABLE IF EXISTS users;
-"""
 
 
 class TestUsers(unittest.IsolatedAsyncioTestCase):
