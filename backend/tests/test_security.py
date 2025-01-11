@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
 
-from .db_tests_settings import sql_delete_all
+from db_tests_settings import sql_delete_all
 
 from app.settings import DATABASE_CONFIG
 from app.security import GetUserCreator, create_token, LoginUserCreator, CreateUserCreator

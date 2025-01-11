@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from .db_tests_settings import sql_delete_all
+from db_tests_settings import sql_delete_all
 
 from app.settings import DATABASE_CONFIG
 from app.db import users, access, exceptions, watches, schema_files

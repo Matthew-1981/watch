@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from fastapi.testclient import TestClient
 
-from .db_tests_settings import sql_delete_all
+from db_tests_settings import sql_delete_all
 
 from app.main import app
 from app.db import DBAccess, schema_files
