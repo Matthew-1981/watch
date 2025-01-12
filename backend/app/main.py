@@ -78,7 +78,7 @@ async def terminate_user(
 
 @app.post('/watch/list')
 async def watchlist(
-        request: messages.UserLoginMessage,
+        request: messages.LoggedInUserMessage,
         auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ) -> responses.WatchListResponse:
     async with db_access.access() as wp:
