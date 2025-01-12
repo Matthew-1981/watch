@@ -1,7 +1,5 @@
-from typing import Self
 from datetime import datetime
 
-from app.security import AuthBundle
 from pydantic import BaseModel
 
 
@@ -12,13 +10,6 @@ class BaseResponse(BaseModel):
 class AuthResponse(BaseResponse):
     user: str
     expiration_date: datetime
-
-    @classmethod
-    def parse(cls, auth_bundle: AuthBundle) -> Self:
-        return cls(
-            user=auth_bundle.user.data.user_name,
-            expiration_date=auth_bundle.token.data.expiration
-        )
 
 
 class LoggedInResponse(BaseResponse):

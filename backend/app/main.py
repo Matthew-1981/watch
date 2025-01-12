@@ -6,13 +6,14 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi import status
 
 from communication import messages, responses
-from . import settings, security, db
+from . import settings, security, db, utils
 from .data_manipulation.interpolation import LinearInterpolation
 from .data_manipulation.log import WatchLogFrame
 
 db_access = db.DBAccess(settings.DATABASE_CONFIG)
 sec_functions = security.SecurityCreator(db_access)
 token_daemon = db.DeleteTokenDaemonCreator(db_access, 5)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -58,7 +59,7 @@ async def refresh_user(
         request: messages.LoggedInUserMessage,
         auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ) -> responses.LoggedInResponse:
-    return responses.LoggedInResponse(auth=responses.AuthResponse.parse(auth_bundle))
+    return responses.LoggedInResponse(auth=utils.parse_auth_bundle(auth_bundle))
 
 
 @app.post('/terminate')
@@ -91,7 +92,7 @@ async def watchlist(
                 cycles=cycles
             ))
     return responses.WatchListResponse(
-        auth=responses.AuthResponse.parse(auth_bundle),
+        auth=utils.parse_auth_bundle(auth_bundle),
         watches=out
     )
 
@@ -115,7 +116,7 @@ async def add_watch(
                                 detail=f"Watch '{request.name}' already exists.")
         await wp.commit()
     return responses.WatchEditResponse(
-        auth=responses.AuthResponse.parse(auth_bundle),
+        auth=utils.parse_auth_bundle(auth_bundle),
         name=watch.data.name,
         date_of_creation=watch.data.date_of_creation
     )
@@ -134,7 +135,7 @@ async def delete_watch(
         await watch.delete(wp.cursor)
         await wp.commit()
     return responses.WatchEditResponse(
-        auth=responses.AuthResponse.parse(auth_bundle),
+        auth=utils.parse_auth_bundle(auth_bundle),
         name=watch.data.name,
         date_of_creation=watch.data.date_of_creation
     )
@@ -164,7 +165,7 @@ async def log_list(
             difference=f.other['difference']
         ) for f in frame.data]
     return responses.LogListResponse(
-        auth=responses.AuthResponse.parse(auth_bundle),
+        auth=utils.parse_auth_bundle(auth_bundle),
         logs=tmp
     )
 
@@ -187,14 +188,14 @@ async def stats(
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).fill(LinearInterpolation)
     try:
         out = responses.StatsResponse(
-            auth=responses.AuthResponse.parse(auth_bundle),
+            auth=utils.parse_auth_bundle(auth_bundle),
             average=frame.average,
             deviation=frame.standard_deviation,
             delta=frame.delta
         )
     except ZeroDivisionError:
         out = responses.StatsResponse(
-            auth=responses.AuthResponse.parse(auth_bundle),
+            auth=utils.parse_auth_bundle(auth_bundle),
             average=None,
             deviation=None,
             delta=None
@@ -217,7 +218,7 @@ async def delete_measurement(
             )
         await log.delete(wp.cursor)
         await wp.commit()
-    return responses.LoggedInResponse(auth=responses.AuthResponse.parse(auth_bundle))
+    return responses.LoggedInResponse(auth=utils.parse_auth_bundle(auth_bundle))
 
 
 @app.post('/logs/add')
@@ -242,7 +243,7 @@ async def add_measurement(
         log = await db.LogRecord.new_log(wp.cursor, new_log)
         await wp.commit()
     return responses.LogAddedResponse(
-        auth=responses.AuthResponse.parse(auth_bundle),
+        auth=utils.parse_auth_bundle(auth_bundle),
         log_id=log.data.log_id,
         time=log.data.timedate,
         measure=log.data.measure
