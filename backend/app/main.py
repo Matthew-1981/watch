@@ -83,7 +83,7 @@ async def watchlist(
 ) -> responses.WatchListResponse:
     async with db_access.access() as wp:
         watches = await db.WatchRecord.get_all_watches(wp.cursor, auth_bundle.user)
-        out: list[responses.WatchElementResponse]
+        out: list[responses.WatchElementResponse] = []
         for watch in watches:
             cycles = await db.LogRecord.get_cycles(wp.cursor, watch.data.watch_id)
             out.append(responses.WatchElementResponse(
@@ -217,6 +217,31 @@ async def delete_measurement(
                 detail=f"Log with id {request.log_id} does not exist."
             )
         await log.delete(wp.cursor)
+        await wp.commit()
+    return responses.LoggedInResponse(auth=utils.parse_auth_bundle(auth_bundle))
+
+
+@app.post('logs/del_cycle')
+async def delete_cycle(
+        request: messages.SpecifyWatchDataMessage,
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
+) -> responses.LoggedInResponse:
+    async with db_access.access() as wp:
+        try:
+            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+        except db.exceptions.OperationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Watch {request.watch_name} not found."
+            )
+
+        try:
+            await db.LogRecord.delete_logs(wp.cursor, watch.data.watch_id, request.cycle)
+        except db.exceptions.OperationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No cycle {request.cycle} for watch {request.watch_name}."
+            )
         await wp.commit()
     return responses.LoggedInResponse(auth=utils.parse_auth_bundle(auth_bundle))
 
