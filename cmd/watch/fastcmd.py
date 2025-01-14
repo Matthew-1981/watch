@@ -1,16 +1,19 @@
 import inspect
 import shlex
-from typing import get_type_hints, get_origin, get_args, Any, Callable
+from typing import get_type_hints, get_origin, get_args, Any, Callable, Optional
 from types import FunctionType
 
 
-class CommandError(Exception):
+class FastCmdError(Exception):
+    pass
+
+class CommandError(FastCmdError):
     pass
 
 class NoCommandError(CommandError):
     pass
 
-class CommandTypeError(CommandError):
+class CommandDefinitionError(FastCmdError):
     pass
 
 
@@ -27,7 +30,7 @@ class Command:
         found_list = False
         for name in names:
             if found_list:
-                raise CommandTypeError("The list must be the final input.")
+                raise CommandDefinitionError("The list must be the final input.")
             annotation = annotations.get(name, str)
             if annotation in self.atomic_types:
                 inputs.append((name, annotation))
@@ -35,9 +38,9 @@ class Command:
                 origins = get_origin(annotation)
                 arguments = get_args(annotation)
                 if origins != list:
-                    raise CommandTypeError("Only str, int, float, bool or list[<all former>] allowed.")
+                    raise CommandDefinitionError("Only str, int, float, bool or list[<all former>] allowed.")
                 if len(arguments) != 1:
-                    raise CommandTypeError("List has to have exactly one atomic type specified.")
+                    raise CommandDefinitionError("List has to have exactly one atomic type specified.")
                 inner_type = arguments[0]
                 inputs.append((name, (origins, inner_type)))
                 found_list = True
@@ -46,33 +49,35 @@ class Command:
         self.inputs = inputs
 
     def parse_args(self, args: list[str]) -> list:
-        i = 0
-        inputs_iter = iter(self.inputs)
         final_args: list = []
-        while i < len(args):
-            current_value = args[i]
-            name, type_ = next(inputs_iter)
+
+        arg_iter = iter(args)
+        for name, type_ in self.inputs:
 
             if isinstance(type_, type):
-                final_value = type_(current_value)
-                i += 1
+                try:
+                    current_value = next(arg_iter)
+                except StopIteration:
+                    raise CommandError("Not enough arguments")
+                try:
+                    final_value = type_(current_value)
+                except ValueError:
+                    raise CommandError(f"Wrong type for argument {name} - {current_value}"
+                                       f" has to be convertable to {type_.__name__}")
                 final_args.append(final_value)
             else:
                 type1, type2 = type_
                 assert type1 == list
                 final_value = []
-                i += 1
-                while i < len(args):
-                    final_value.append(type2(args[i]))
-                    i += 1
+                for current_value in arg_iter:
+                    try:
+                        final_value.append(type2(current_value))
+                    except ValueError:
+                        raise CommandError(f"Wrong type for argument {name} - {current_value}"
+                                           f" has to be convertable to {type_.__name__}")
                 final_args.append(final_value)
                 break
-        try:
-            next(inputs_iter)
-        except StopIteration:
-            pass
-        else:
-            raise CommandError("Not all arguments specified.")
+
         return final_args
 
     def __call__(self, args: list[str]) -> Any:
@@ -84,22 +89,60 @@ class CommandApp:
 
     def __init__(self):
         self.commands: dict[str, Command] = {}
+        self.aliases: dict[str, str] = {}
+        self.descriptions: dict[str, str] = {}
 
-    def command(self, name: str) -> Callable[[FunctionType], FunctionType]:
+    def command(self, *names: str, description: Optional[str] = None) -> Callable[[FunctionType], FunctionType]:
+
+        if len(names) == 0:
+            raise CommandDefinitionError("No names for command specified.")
 
         def wrapper(func: FunctionType):
             command = Command(func)
-            if name in self.commands:
-                raise CommandTypeError(f"Command with name {name} already added.")
-            self.commands[name] = command
+            iter_names = iter(names)
+            main_name = next(iter_names)
+
+            self.commands[main_name] = command
+            self.aliases[main_name] = main_name
+            self.descriptions[main_name] = description
+
+            while True:
+                try:
+                    name = next(iter_names)
+                except StopIteration:
+                    break
+                if name in self.aliases:
+                    raise CommandDefinitionError(f"Command with name {name} already added.")
+                self.aliases[name] = main_name
+
             return func
 
         return wrapper
 
+    def get_description(self) -> list[tuple[str, tuple[str, ...], str]]:
+        out = []
+        for command in self.commands.keys():
+            aliases = tuple(filter(lambda x: self.aliases[x] == command and not x == command, self.aliases.keys()))
+            out.append((command, aliases, self.descriptions[command]))
+        return out
+
+    def get_str_description(self) -> str:
+        out = []
+        for command, aliases, description in self.get_description():
+            types = self.commands[command].inputs
+            desc = f"\n{description}" if description is not None else ''
+            args = ' '.join(
+                f'{type_.__name__}[{name}]' if isinstance(type_, type) else f'list[{type_[1].__name__}[{name}]]'
+                for name, type_ in types)
+            tmp = f'{command} or {aliases}\nusage: {command} {args}{desc}'
+            out.append(tmp)
+        return '\n\n'.join(out)
+
     def run_command(self, name: str, args: list[str]) -> Any:
-        if name not in self.commands:
+        if name not in self.aliases:
             raise CommandError(f"Command {name} not found.")
-        return self.commands[name](args)
+        main_name = self.aliases[name]
+        return self.commands[main_name](args)
 
     def parse_and_run(self, command: str) -> Any:
         arguments = shlex.split(command)
