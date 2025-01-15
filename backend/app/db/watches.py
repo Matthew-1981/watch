@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Self
 
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
