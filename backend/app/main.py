@@ -17,7 +17,19 @@ token_daemon = db.DeleteTokenDaemonCreator(db_access, 5)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await db.db_initiate(db_access,*db.schema_files)
+    max_retries = 10
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            await db.db_initiate(db_access, *db.schema_files)
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                raise e
+
     asyncio.create_task(token_daemon())
     yield
 
