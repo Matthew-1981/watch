@@ -15,7 +15,6 @@ def _get_env_raise(env_name: str) -> str:
 DATABASE_CONFIG = {
     'user': _get_env_raise('MYSQL_USER'),
     'password': _get_env_raise('MYSQL_PASSWORD'),
-    'host': _get_env_raise('MYSQL_HOST'),
+    'host': _get_env_raise('DB_HOST'),
     'database': _get_env_raise('MYSQL_DATABASE'),
-    # 'raise_on_warnings': True
 }

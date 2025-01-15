@@ -57,3 +57,8 @@ class DBAccess:
 
     def access(self) -> DBContext:
         return DBContext(self.credentials)
+
+
+async def db_initiate(db_access: DBAccess, *schema_files: Path):
+    for file in schema_files:
+        await db_access.run_sql_file(file)

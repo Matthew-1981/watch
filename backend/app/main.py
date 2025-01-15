@@ -17,6 +17,7 @@ token_daemon = db.DeleteTokenDaemonCreator(db_access, 5)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await db.db_initiate(db_access,*db.schema_files)
     asyncio.create_task(token_daemon())
     yield
 
