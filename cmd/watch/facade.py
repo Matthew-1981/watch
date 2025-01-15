@@ -1,7 +1,6 @@
 from typing import Optional
 from datetime import datetime, timedelta
 from urllib import parse
-import json
 
 import requests
 from communication import messages, responses
@@ -45,7 +44,7 @@ class WatchFacade:
         self.log_stats_path = '/logs/stats'
         self.log_delete_path = '/logs/delete'
         self.log_delete_cycle_path = '/logs/del_cycle'
-        self.log_add_path = '/log/add'
+        self.log_add_path = '/logs/add'
 
     def _resolve_token_expiration(self, expiration_minutes: int | None) -> int:
         if expiration_minutes is not None:
@@ -62,12 +61,12 @@ class WatchFacade:
             return_type: type[T]
     ) -> T:
         try:
-            resp = requests.post(str(self.url._replace(path=path)), json=message.model_dump())
+            resp = requests.post(self.url._replace(path=path).geturl(), data=message.model_dump_json())
         except requests.exceptions.RequestException as e:
             raise FacadeRequestError("Error while communicating with the backend.") from e
         if resp.status_code != 200:
-            tmp = json.loads(resp.content)
-            raise FacadeOperationalError(status_code=resp.status_code, message=tmp['detail'])
+            tmp = resp.content.decode('utf-8')
+            raise FacadeOperationalError(status_code=resp.status_code, message=tmp)
         return return_type.model_validate_json(resp.content)
 
     def register_user(self, user: str, password: str):
@@ -272,9 +271,9 @@ class Manager:
             self.login()
 
     def is_logged_in(self) -> bool:
-        return (self.token is None
+        return (self.token is not None
                 and self.expiration is not None
-                and self.expiration < datetime.now() + timedelta(seconds=5))
+                and self.expiration > datetime.now() + timedelta(seconds=5))
 
     def _check_login(self):
         if not self.is_logged_in():
@@ -336,6 +335,9 @@ class Manager:
         self._check_login()
         resp = self.facade.delete_watch(self.token, watch)
         self._handle_logged_in_response(resp)
+        if watch_name == self.watch:
+            self.watch = None
+            self.cycle = None
         return resp
 
     def change_watch(self, name: str):
@@ -349,7 +351,7 @@ class Manager:
         else:
             raise ManagerOperationalError(f"Watch with name {name} not found.")
         self.watch = name
-        self.cycle = max(cycles)
+        self.cycle = max(cycles) if len(cycles) > 0 else 1
 
     def change_cycle(self, cycle: int):
         self._resolve_watch()
@@ -404,10 +406,16 @@ class Manager:
     def delete_cycle(self) -> responses.LoggedInResponse:
         self._resolve_watch()
         self._check_login()
-        resp = self.facade.delete_cycle(self.token, self.watch, self.cycle, self.expiration)
+        resp = self.facade.delete_cycle(self.token, self.watch, self.cycle, self.default_expiration)
         self._handle_logged_in_response(resp)
-        self.watch = None
-        self.cycle = None
+        watches = self.facade.get_watch_list(self.token, self.default_expiration)
+        cycles = None
+        for watch in watches.watches:
+            if watch.name == self.watch:
+                cycles = watch.cycles
+                break
+        assert cycles is not None
+        self.cycle = max(cycles) if len(cycles) > 0 else 1
         return resp
 
     def add_log(self, measure: float, time: Optional[datetime] = None) -> responses.LogAddedResponse:

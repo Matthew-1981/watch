@@ -131,10 +131,11 @@ class CommandApp:
         for command, aliases, description in self.get_description():
             types = self.commands[command].inputs
             desc = f"\n{description}" if description is not None else ''
+            aliases_message = f" or {aliases}" if len(aliases) > 0 else ''
             args = ' '.join(
                 f'{type_.__name__}[{name}]' if isinstance(type_, type) else f'list[{type_[1].__name__}[{name}]]'
                 for name, type_ in types)
-            tmp = f'{command} or {aliases}\nusage: {command} {args}{desc}'
+            tmp = f'{command}{aliases_message}\nusage: {command} {args}{desc}'
             out.append(tmp)
         return '\n\n'.join(out)
 
