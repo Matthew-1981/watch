@@ -139,19 +139,19 @@ class CommandApp:
             out.append(tmp)
         return '\n\n'.join(out)
 
-    def run_command(self, name: str, args: list[str]) -> Any:
+    def run_parsed(self, name: str, args: list[str]) -> Any:
         if name not in self.aliases:
             raise CommandError(f"Command {name} not found.")
         main_name = self.aliases[name]
         return self.commands[main_name](args)
 
-    def parse_and_run(self, command: str) -> Any:
+    def run_from_string(self, command: str) -> Any:
         arguments = shlex.split(command)
         if len(arguments) == 0:
             raise NoCommandError("No command specified.")
         cmd = arguments[0]
         args = arguments[1:]
-        return self.run_command(cmd, args)
+        return self.run_parsed(cmd, args)
 
     def __call__(self, command: str) -> Any:
-        return self.parse_and_run(command)
+        return self.run_from_string(command)
