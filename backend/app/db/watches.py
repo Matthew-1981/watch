@@ -28,7 +28,7 @@ class WatchRecord:
     def check_integrity(self) -> bool:
         return self._initial_ids == (self.data.user_id, self.data.watch_id)
 
-    async def update(self, cursor: MySQLCursor):
+    async def update(self, cursor: MySQLCursor) -> int:
         if not self.check_integrity():
             raise RuntimeError
         try:
@@ -38,8 +38,7 @@ class WatchRecord:
             )
         except Error as e:
             raise ConstraintError() from e
-        # if cursor.rowcount != 1:
-        #     raise OperationError()
+        return cursor.rowcount
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -54,10 +53,15 @@ class WatchRecord:
         if cursor.rowcount != 1:
             raise OperationError()
 
-    @classmethod
-    async def get_all_watches(cls, cursor: MySQLCursor, user: UserRecord) -> tuple[Self, ...]:
+
+class WatchRecordManager:
+
+    def __init__(self, user: UserRecord):
+        self.user = user
+
+    async def get_all_watches(self, cursor: MySQLCursor) -> tuple[WatchRecord, ...]:
         await cursor.execute("SELECT * FROM watch WHERE user_id = %s ORDER BY date_of_creation ASC",
-                             (user.data.user_id,))
+                             (self.user.data.user_id,))
         rows = await cursor.fetchall()
         out = []
         for row in rows:
@@ -67,12 +71,28 @@ class WatchRecord:
                 name=row[2],
                 date_of_creation=row[3]
             )
-            out.append(cls(current))
+            out.append(WatchRecord(current))
         return tuple(out)
 
-    @classmethod
-    async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
-        await cursor.execute("SELECT * FROM watch WHERE watch_id = %s", (watch_id,))
+    # @classmethod
+    # async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
+    #     await cursor.execute("SELECT * FROM watch WHERE watch_id = %s", (watch_id,))
+    #     row = await cursor.fetchone()
+    #     if row is None:
+    #         raise OperationError()
+    #     watch = ExistingWatch(
+    #         watch_id=row[0],
+    #         user_id=row[1],
+    #         name=row[2],
+    #         date_of_creation=row[3]
+    #     )
+    #     return cls(watch)
+
+    async def get_watch_by_name(self, cursor: MySQLCursor, name: str) -> WatchRecord:
+        await cursor.execute(
+            "SELECT * FROM watch WHERE user_id = %s AND name = %s",
+            (self.user.data.user_id, name)
+        )
         row = await cursor.fetchone()
         if row is None:
             raise OperationError()
@@ -82,24 +102,11 @@ class WatchRecord:
             name=row[2],
             date_of_creation=row[3]
         )
-        return cls(watch)
+        return WatchRecord(watch)
 
-    @classmethod
-    async def get_watch_by_name(cls, cursor: MySQLCursor, user_id: int, name: str) -> Self:
-        await cursor.execute("SELECT * FROM watch WHERE user_id = %s AND name = %s", (user_id, name))
-        row = await cursor.fetchone()
-        if row is None:
-            raise OperationError()
-        watch = ExistingWatch(
-            watch_id=row[0],
-            user_id=row[1],
-            name=row[2],
-            date_of_creation=row[3]
-        )
-        return cls(watch)
-
-    @classmethod
-    async def new_watch(cls, cursor: MySQLCursor, watch: NewWatch) -> Self:
+    async def new_watch(self, cursor: MySQLCursor, watch: NewWatch) -> WatchRecord:
+        if self.user.data.user_id != watch.user_id:
+            raise ValueError("User in 'watch' is different than the one in self.user")
         try:
             await cursor.execute(
                 "INSERT INTO watch (user_id, name, date_of_creation) VALUES (%s, %s, %s)",
@@ -109,7 +116,7 @@ class WatchRecord:
             raise ConstraintError() from e
         if cursor.rowcount != 1:
             raise OperationError()
-        return await cls.get_watch_by_name(cursor, watch.user_id, watch.name)
+        return await self.get_watch_by_name(cursor, watch.name)
 
 
 class NewLog(BaseModel):
@@ -132,7 +139,7 @@ class LogRecord:
     def check_integrity(self) -> bool:
         return self._initial_ids == (self.data.watch_id, self.data.log_id)
 
-    async def update(self, cursor: MySQLCursor):
+    async def update(self, cursor: MySQLCursor) -> int:
         if not self.check_integrity():
             raise RuntimeError
         try:
@@ -142,8 +149,7 @@ class LogRecord:
             )
         except Error as e:
             raise ConstraintError from e
-        # if cursor.rowcount != 1:
-        #     raise OperationError()
+        return cursor.rowcount
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -155,9 +161,17 @@ class LogRecord:
         if cursor.rowcount != 1:
             raise OperationError()
 
-    @classmethod
-    async def get_log_by_id(cls, cursor: MySQLCursor, log_id: int) -> Self:
-        await cursor.execute("SELECT * FROM log WHERE log_id = %s", (log_id,))
+
+class LogRecordManager:
+
+    def __init__(self, watch: WatchRecord):
+        self.watch = watch
+
+    async def get_log_by_id(self, cursor: MySQLCursor, cycle: int, log_id: int) -> LogRecord:
+        await cursor.execute(
+            "SELECT * FROM log WHERE log_id = %s AND watch_id = %s AND cycle = %s",
+            (log_id, self.watch.data.watch_id, cycle)
+        )
         row = await cursor.fetchone()
         if row is None:
             raise OperationError()
@@ -168,10 +182,11 @@ class LogRecord:
             timedate=row[3],
             measure=row[4]
         )
-        return cls(log)
+        return LogRecord(log)
 
-    @classmethod
-    async def new_log(cls, cursor: MySQLCursor, log: NewLog) -> Self:
+    async def new_log(self, cursor: MySQLCursor, cycle: int, log: NewLog) -> LogRecord:
+        if self.watch.data.watch_id != log.watch_id or cycle != log.cycle:
+            raise ValueError("self.watch or cycle are different in log: NewLog")
         try:
             await cursor.execute(
                 "INSERT INTO log (watch_id, cycle, timedate, measure) VALUES (%s, %s, %s, %s)",
@@ -181,22 +196,22 @@ class LogRecord:
             raise ConstraintError() from e
         if cursor.rowcount != 1:
             raise OperationError()
-        return await cls.get_log_by_id(cursor, cursor.lastrowid)
+        log_id = cursor.lastrowid
+        assert log_id is not None
+        return await self.get_log_by_id(cursor, cycle, log_id)
 
-    @classmethod
-    async def get_cycles(cls, cursor: MySQLCursor, watch_id: int) ->  list[int]:
+    async def get_cycles(self, cursor: MySQLCursor) ->  list[int]:
         await cursor.execute(
             "SELECT DISTINCT cycle FROM log WHERE watch_id = %s ORDER BY cycle ASC",
-            (watch_id,)
+            (self.watch.data.watch_id,)
         )
         return [i for (i,) in await cursor.fetchall()]
 
 
-    @classmethod
-    async def get_logs(cls, cursor: MySQLCursor, watch_id: int, cycle: int) -> tuple[Self, ...]:
+    async def get_logs(self, cursor: MySQLCursor, cycle: int) -> tuple[LogRecord, ...]:
         await cursor.execute(
             "SELECT * FROM log WHERE watch_id = %s AND cycle = %s",
-            (watch_id, cycle)
+            (self.watch.data.watch_id, cycle)
         )
         rows = await cursor.fetchall()
         out = []
@@ -208,14 +223,13 @@ class LogRecord:
                 timedate=row[3],
                 measure=row[4]
             )
-            out.append(cls(current))
+            out.append(LogRecord(current))
         return tuple(out)
 
-    @classmethod
-    async def delete_logs(cls, cursor: MySQLCursor, watch_id: int, cycle: int):
+    async def delete_logs(self, cursor: MySQLCursor, cycle: int):
         await cursor.execute(
             "DELETE FROM log WHERE watch_id = %s AND cycle = %s",
-            (watch_id, cycle)
+            (self.watch.data.watch_id, cycle)
         )
         if cursor.rowcount == -1:
             raise OperationError()

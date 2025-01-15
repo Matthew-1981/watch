@@ -29,7 +29,7 @@ class UserRecord:
     def check_integrity(self) -> bool:
         return self.data.user_id == self._initial_user_id
 
-    async def update(self, cursor: MySQLCursor):
+    async def update(self, cursor: MySQLCursor) -> int:
         if not self.check_integrity():
             raise RuntimeError
         try:
@@ -39,8 +39,7 @@ class UserRecord:
             )
         except Error as e:
             raise ConstraintError from e
-        # if cursor.rowcount != 1:
-        #     raise OperationError()
+        return cursor.rowcount
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():
@@ -116,7 +115,7 @@ class TokenRecord:
     def check_integrity(self) -> bool:
         return self._initial_ids == (self.data.user_id, self.data.token_id)
 
-    async def update(self, cursor: MySQLCursor):
+    async def update(self, cursor: MySQLCursor) -> int:
         if not self.check_integrity():
             raise RuntimeError
         try:
@@ -126,8 +125,7 @@ class TokenRecord:
             )
         except Error as e:
             raise ConstraintError() from e
-        # if cursor.rowcount != 1:
-        #     raise OperationError()
+        return cursor.rowcount
 
     async def delete(self, cursor: MySQLCursor):
         if not self.check_integrity():

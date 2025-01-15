@@ -82,10 +82,10 @@ async def watchlist(
         auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
 ) -> responses.WatchListResponse:
     async with db_access.access() as wp:
-        watches = await db.WatchRecord.get_all_watches(wp.cursor, auth_bundle.user)
+        watches = await db.WatchRecordManager(auth_bundle.user).get_all_watches(wp.cursor)
         out: list[responses.WatchElementResponse] = []
         for watch in watches:
-            cycles = await db.LogRecord.get_cycles(wp.cursor, watch.data.watch_id)
+            cycles = await db.LogRecordManager(watch).get_cycles(wp.cursor)
             out.append(responses.WatchElementResponse(
                 name=watch.data.name,
                 date_of_creation=watch.data.date_of_creation,
@@ -109,7 +109,7 @@ async def add_watch(
             date_of_creation=datetime.now()
         )
         try:
-            watch = await db.WatchRecord.new_watch(wp.cursor, new_watch)
+            watch = await db.WatchRecordManager(auth_bundle.user).new_watch(wp.cursor, new_watch)
         except db.exceptions.ConstraintError:
             await wp.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -129,7 +129,7 @@ async def delete_watch(
 ) -> responses.WatchEditResponse:
     async with db_access.access() as wp:
         try:
-            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.name)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.name)
         except db.exceptions.OperationError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Watch {request.name} does not exits.")
         await watch.delete(wp.cursor)
@@ -148,13 +148,13 @@ async def log_list(
 ) -> responses.LogListResponse:
     async with db_access.access() as wp:
         try:
-            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Watch {request.watch_name} not found."
             )
-        logs = await db.LogRecord.get_logs(wp.cursor, watch.data.watch_id, request.cycle)
+        logs = await db.LogRecordManager(watch).get_logs(wp.cursor, request.cycle)
     table = [(log.data.log_id, log.data.timedate, log.data.measure) for log in logs]
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).get_log_with_dif()
     tmp = [
@@ -177,13 +177,13 @@ async def stats(
 ) -> responses.StatsResponse:
     async with db_access.access() as wp:
         try:
-            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Watch {request.watch_name} not found."
             )
-        logs = await db.LogRecord.get_logs(wp.cursor, watch.data.watch_id, request.cycle)
+        logs = await db.LogRecordManager(watch).get_logs(wp.cursor, request.cycle)
     table = [(log.data.log_id, log.data.timedate, log.data.measure) for log in logs]
     frame = WatchLogFrame.from_table(('log_id', 'datetime', 'measure'), table).fill(LinearInterpolation)
     try:
@@ -210,11 +210,18 @@ async def delete_measurement(
 ) -> responses.LoggedInResponse:
     async with db_access.access() as wp:
         try:
-            log = await db.LogRecord.get_log_by_id(wp.cursor, request.log_id)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Log with id {request.log_id} does not exist."
+                detail=f"Watch {request.watch_name} not found."
+            )
+        try:
+            log = await db.LogRecordManager(watch).get_log_by_id(wp.cursor, request.cycle, request.log_id)
+        except db.exceptions.OperationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Log with id {request.log_id} does not exist in this cycle."
             )
         await log.delete(wp.cursor)
         await wp.commit()
@@ -228,7 +235,7 @@ async def delete_cycle(
 ) -> responses.LoggedInResponse:
     async with db_access.access() as wp:
         try:
-            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -236,7 +243,7 @@ async def delete_cycle(
             )
 
         try:
-            await db.LogRecord.delete_logs(wp.cursor, watch.data.watch_id, request.cycle)
+            await db.LogRecordManager(watch).delete_logs(wp.cursor, request.cycle)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -253,7 +260,7 @@ async def add_measurement(
 ) -> responses.LogAddedResponse:
     async with db_access.access() as wp:
         try:
-            watch = await db.WatchRecord.get_watch_by_name(wp.cursor, auth_bundle.user.data.user_id, request.watch_name)
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
         except db.exceptions.OperationError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -265,7 +272,7 @@ async def add_measurement(
             timedate=request.datetime,
             measure=round(request.measure, 2)
         )
-        log = await db.LogRecord.new_log(wp.cursor, new_log)
+        log = await db.LogRecordManager(watch).new_log(wp.cursor, request.cycle, new_log)
         await wp.commit()
     return responses.LogAddedResponse(
         auth=utils.parse_auth_bundle(auth_bundle),
