@@ -221,7 +221,7 @@ async def delete_measurement(
     return responses.LoggedInResponse(auth=utils.parse_auth_bundle(auth_bundle))
 
 
-@app.post('logs/del_cycle')
+@app.post('/logs/del_cycle')
 async def delete_cycle(
         request: messages.SpecifyWatchDataMessage,
         auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)

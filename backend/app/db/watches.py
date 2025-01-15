@@ -67,7 +67,7 @@ class WatchRecord:
                 name=row[2],
                 date_of_creation=row[3]
             )
-            out.append(current)
+            out.append(cls(current))
         return tuple(out)
 
     @classmethod
