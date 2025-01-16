@@ -183,6 +183,38 @@ async def log_list(
     )
 
 
+@app.post('/logs/fill')
+async def log_fill(
+        request: messages.SpecifyWatchDataMessage,
+        auth_bundle: security.AuthBundle = Depends(sec_functions.get_user)
+) -> responses.LogListResponse:
+    async with db_access.access() as wp:
+        try:
+            watch = await db.WatchRecordManager(auth_bundle.user).get_watch_by_name(wp.cursor, request.watch_name)
+        except db.exceptions.OperationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Watch {request.watch_name} not found."
+            )
+        logs = await db.LogRecordManager(watch).get_logs(wp.cursor, request.cycle)
+    table = [(log.data.log_id, log.data.timedate, log.data.measure) for log in logs]
+    frame = (WatchLogFrame
+             .from_table(('log_id', 'datetime', 'measure'), table)
+             .fill(LinearInterpolation)
+             .get_log_with_dif())
+    tmp = [
+        responses.LogResponse(
+            log_id=None,
+            time=f.datetime,
+            measure=f.measure,
+            difference=f.other['difference']
+        ) for f in frame.data]
+    return responses.LogListResponse(
+        auth=utils.parse_auth_bundle(auth_bundle),
+        logs=tmp
+    )
+
+
 @app.post('/logs/stats')
 async def stats(
         request: messages.SpecifyWatchDataMessage,

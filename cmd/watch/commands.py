@@ -111,6 +111,16 @@ def get_app(manager: Manager) -> CommandApp:
             print(table)
         utils.run_with_handling(manager.get_log_list, on_success=print_logs)
 
+    @app.command('fill', 'f', description='Show interpolated current log')
+    def fill_logs():
+        if not utils.check_watch_chosen(manager):
+            return
+        def print_logs(logs: responses.LogListResponse):
+            table = [[l.time, l.measure, l.difference] for l in logs.logs]
+            table = tabulate(table, headers=['time', 'measure', 'difference'], tablefmt='grid')
+            print(table)
+        utils.run_with_handling(manager.get_log_fill, on_success=print_logs)
+
     @app.command('stats', 'ls', description='Get statistics for the current watch and cycle')
     def log_stats():
         if not utils.check_watch_chosen(manager):

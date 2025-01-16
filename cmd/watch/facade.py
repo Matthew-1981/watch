@@ -41,6 +41,7 @@ class WatchFacade:
         self.watch_delete_path = '/watch/delete'
 
         self.log_list_path = '/logs/list'
+        self.log_fill_path = '/logs/fill'
         self.log_stats_path = '/logs/stats'
         self.log_delete_path = '/logs/delete'
         self.log_delete_cycle_path = '/logs/del_cycle'
@@ -167,6 +168,22 @@ class WatchFacade:
             cycle=cycle
         )
         return self._send(self.log_list_path, message, responses.LogListResponse)
+
+    def get_log_fill(self,
+                     token: str,
+                     watch_name: str,
+                     cycle: int,
+                     expiration_minutes: Optional[int] = None
+    ) -> responses.LogListResponse:
+        message = messages.SpecifyWatchDataMessage(
+            auth=messages.AuthMessage(
+                token=token,
+                expiration_minutes=self._resolve_token_expiration(expiration_minutes)
+            ),
+            watch_name=watch_name,
+            cycle=cycle
+        )
+        return self._send(self.log_fill_path, message, responses.LogListResponse)
 
     def delete_cycle(self,
                      token: str,
@@ -386,6 +403,13 @@ class Manager:
         self._resolve_watch()
         self._check_login()
         resp = self.facade.get_log_list(self.token, self.watch, self.cycle)
+        self._handle_logged_in_response(resp)
+        return resp
+
+    def get_log_fill(self) -> responses.LogListResponse:
+        self._resolve_watch()
+        self._check_login()
+        resp = self.facade.get_log_fill(self.token, self.watch, self.cycle)
         self._handle_logged_in_response(resp)
         return resp
 
