@@ -146,7 +146,10 @@ class CommandApp:
         return self.commands[main_name](args)
 
     def run_from_string(self, command: str) -> Any:
-        arguments = shlex.split(command)
+        try:
+            arguments = shlex.split(command)
+        except ValueError as e:
+            raise CommandError("Invalid command format.") from e
         if len(arguments) == 0:
             raise NoCommandError("No command specified.")
         cmd = arguments[0]

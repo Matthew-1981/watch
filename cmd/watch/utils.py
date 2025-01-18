@@ -4,7 +4,7 @@ import json
 
 from pydantic import ValidationError
 
-from . import facade, fastcmd
+from . import facade
 
 
 def smart_prompt(wait=10, add=0):
@@ -64,18 +64,13 @@ def run_with_handling[T](func: Callable[..., T],
         print(e)
     except facade.FacadeOperationalError as e:
         print(json.loads(e.resp_message)['detail'])
-    # except facade.FacadeRequestError:
-    #     traceback.print_exc()
-    #     exit(2)
-    except fastcmd.CommandError as e:
-        print(e)
     except ValidationError as e:
         print(e)
     else:
         on_success(out)
 
 
-def uy_prompt(message: str) -> bool:
+def yn_prompt(message: str) -> bool:
     print(message)
     answer = None
     while answer is None or answer not in ['yes', 'y', 'no', 'n']:
