@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import argparse
 import getpass
+import re
 
 from tabulate import tabulate
 from prompt_toolkit import PromptSession
@@ -12,12 +13,11 @@ from .fastcmd import CommandApp, CommandError
 from .facade import WatchFacade, Manager, FacadeOperationalError, ManagerOperationalError, FacadeRequestError
 from . import utils, config
 
+config_file = Path('~/.watchrc').expanduser()
 
-def create_config(file: Path, no_write: bool = False) -> config.ConfigContents:
-    if not no_write:
-        print('Creating configuration file...')
-    else:
-        print('Enter configuration information...')
+
+def get_config_from_user() -> config.ConfigContents:
+    print('Enter configuration information...')
     host = input('host: ')
     user_name = input('username: ')
     password = getpass.getpass(prompt='password: ')
@@ -32,22 +32,34 @@ def create_config(file: Path, no_write: bool = False) -> config.ConfigContents:
         ),
         default_watch=None
     )
-    if not no_write:
-        with open(file, 'w') as f:
-            f.write(contents.model_dump_json(indent=4))
     return contents
 
 
-def get_config(file: Path) -> config.ConfigContents:
+def create_config_file(file: Path) -> config.ConfigContents:
+    settings = get_config_from_user()
+    settings.to_file(file)
+    return settings
+
+
+def resolve_config(file: Path) -> config.ConfigContents:
     if not file.exists():
-        return create_config(file)
+        return create_config_file(file)
     else:
-        with open(file, 'r') as f:
-            return config.ConfigContents.model_validate_json(f.read())
+        return config.ConfigContents.from_file(file)
 
 
-def get_app(manager: Manager) -> CommandApp:
+def get_app(manager: Manager, settings: config.ConfigContents, conf_file: Path) -> CommandApp:
     app = CommandApp()
+
+    @app.command('default', description="Change default watch")
+    def change_default(name: str):
+        reg = r'^[a-zA-Z0-9_ -]{4,32}$'
+        if re.compile(reg).match(name) is None:
+            print(f"Watch name has to match expression '{reg}'")
+        else:
+            settings.default_watch = name
+            settings.to_file(conf_file)
+            print(f"Default watch changed to '{name}'")
 
     @app.command('swap-watch', 'sw', description='Change current watch')
     def change_watch(name: str):
@@ -179,9 +191,7 @@ def run_interactive(manager: Manager, app: CommandApp):
                 print(e)
 
 
-config_file = Path('~/.watchrc').expanduser()
-
-def main():
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Command line tool")
     subparsers = parser.add_subparsers(dest='command')
 
@@ -191,16 +201,17 @@ def main():
 
     subparsers.add_parser('terminate', help='Terminate user')
 
-    def_parser = subparsers.add_parser('default', help='Set default watch')
-    def_parser.add_argument('name', type=str, help='Name of the new default watch')
-
     run_parser = subparsers.add_parser('run', help='Run the application with arguments')
     run_parser.add_argument('args', nargs=argparse.REMAINDER, help='Arguments for the run command')
 
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = get_parser().parse_args()
 
     if args.command == 'register':
-        settings = create_config(config_file)
+        settings = create_config_file(config_file)
         facade = WatchFacade(
             url=settings.config_server.host,
             default_token_expiration_minutes=settings.config_server.token_expiration_minutes
@@ -210,19 +221,14 @@ def main():
         except FacadeOperationalError as e:
             print(json.loads(e.resp_message)['detail'])
             exit(1)
-        else:
-            exit(0)
+        exit(0)
+
     elif args.command == 'config':
-        create_config(config_file)
+        create_config_file(config_file)
         exit(0)
-    elif args.command == 'default':
-        settings = get_config(config_file)
-        settings.default_watch = args.name
-        with open(config_file, 'w') as f:
-            f.write(settings.model_dump_json(indent=4))
-        exit(0)
+
     elif args.command == 'terminate':
-        settings = create_config(config_file, no_write=True)
+        settings = get_config_from_user()
         if not utils.yn_prompt(f"Are you sure you want to delete user '{settings.config_user.username}'?"
                                f"(THIS OPERATION IS NOT REVERSIBLE!)"):
             exit(0)
@@ -236,10 +242,10 @@ def main():
         except FacadeOperationalError as e:
             print(e.resp_message)
             exit(1)
-        else:
-            exit(0)
+        exit(0)
+
     else:
-        settings = get_config(config_file)
+        settings = resolve_config(config_file)
         manager = Manager(
             url=settings.config_server.host,
             user=settings.config_user.username,
@@ -248,6 +254,9 @@ def main():
             login_now=False,
             auto_login=True
         )
+
+        print(f"Watch Database CMD Client\nhost: {settings.config_server.host}, user: {settings.config_user.username}")
+
         try:
             manager.login()
         except FacadeOperationalError as e:
@@ -258,31 +267,14 @@ def main():
             print(f"Cannot connect to the server! (check config in {config_file})\ndetails: {e}")
             exit(1)
 
-        if settings.default_watch is not None:
-            try:
-                manager.change_watch(settings.default_watch)
-            except ManagerOperationalError as e:
-                print(e)
-
-        app = get_app(manager)
-
-        if args.command == 'run':
-            if len(args.args) == 0:
+        try:
+            if settings.default_watch is not None:
                 try:
-                    app.run_parsed('watches', [])
-                except CommandError as e:
+                    manager.change_watch(settings.default_watch)
+                except ManagerOperationalError as e:
                     print(e)
-            else:
-                name = args.args[0]
-                if name.strip() in ['swap-watch', 'sw', 'swap-cycle', 'sc', 'add-cycle', 'ac']:
-                    print(f"Command '{name.strip()}' is only allowed in interactive mode")
-                    exit(1)
-                arguments = args.args[1:]
-                try:
-                    app.run_parsed( name, arguments)
-                except CommandError as e:
-                    print(e)
-        else:
+
+            app = get_app(manager, settings, config_file)
             run_interactive(manager, app)
-
-        manager.logout()
+        finally:
+            manager.logout()

@@ -1,7 +1,7 @@
 from typing import Self
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 
 class ConfigUser(BaseModel):
@@ -20,11 +20,23 @@ class ConfigContents(BaseModel):
     default_watch: str | None
 
     @classmethod
+    def _verify_write(cls, file: Path) -> bool:
+        if not file.exists():
+            return True
+        try:
+            cls.from_file(file)
+            return True
+        except ValidationError:
+            return False
+
+    @classmethod
     def from_file(cls, file: Path) -> Self:
-        with open(file) as f:
+        with open(file, 'r') as f:
             text = f.read()
         return cls.model_validate_json(text)
 
     def to_file(self, file: Path):
-        with open(file) as f:
+        if not self._verify_write(file):
+            raise ValueError(f"Config file {str(file)} cannot be parsed. Fix or delete the file to continue.")
+        with open(file, 'w') as f:
             f.write(self.model_dump_json(indent=4))
