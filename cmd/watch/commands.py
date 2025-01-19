@@ -102,7 +102,7 @@ def get_app(manager: Manager, settings: config.ConfigContents, conf_file: Path) 
     @app.command('watches', 'lw', description='List all watches')
     def list_watches():
         def print_watches(watches: responses.WatchListResponse):
-            table = [[w.name, w.date_of_creation, utils.parse_cycle_list(w.cycles)] for w in watches.watches]
+            table = [[w.name, w.date_of_creation.astimezone(), utils.parse_cycle_list(w.cycles)] for w in watches.watches]
             table = tabulate(table, headers=['Name', 'Creation date', 'Cycles'], tablefmt='grid')
             print(table)
         utils.run_with_handling(manager.get_watch_list, on_success=print_watches)
@@ -120,7 +120,7 @@ def get_app(manager: Manager, settings: config.ConfigContents, conf_file: Path) 
         if not utils.check_watch_chosen(manager):
             return
         def print_logs(logs: responses.LogListResponse):
-            table = [[l.log_id, l.time, l.measure, l.difference] for l in logs.logs]
+            table = [[l.log_id, l.time.astimezone(), l.measure, l.difference] for l in logs.logs]
             table = tabulate(table, headers=['Log ID', 'time', 'measure', 'difference'], tablefmt='grid')
             print(table)
         utils.run_with_handling(manager.get_log_list, on_success=print_logs)
@@ -130,7 +130,7 @@ def get_app(manager: Manager, settings: config.ConfigContents, conf_file: Path) 
         if not utils.check_watch_chosen(manager):
             return
         def print_logs(logs: responses.LogListResponse):
-            table = [[l.time, l.measure, l.difference] for l in logs.logs]
+            table = [[l.time.astimezone(), l.measure, l.difference] for l in logs.logs]
             table = tabulate(table, headers=['time', 'measure', 'difference'], tablefmt='grid')
             print(table)
         utils.run_with_handling(manager.get_log_fill, on_success=print_logs)

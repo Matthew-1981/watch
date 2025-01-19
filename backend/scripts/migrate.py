@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import argparse
 from pathlib import Path
 import sqlite3
@@ -19,6 +20,7 @@ def migrate(sqlite_db: Path, db_config: dict[str, str], user_name: str):
     assert isinstance(user_id, int)
 
     for watch_id, name, date in watches:
+        date = datetime.fromisoformat(date).astimezone(timezone.utc)
         mysql_cursor.execute(
             'INSERT INTO watch (user_id, name, date_of_creation) VALUES (%s, %s, %s)',
             (user_id, name, date)
@@ -30,6 +32,8 @@ def migrate(sqlite_db: Path, db_config: dict[str, str], user_name: str):
         logs = sqlite_cursor.fetchall()
         sqlite_cursor.close()
         for _, _, cycle, timedate, measure in logs:
+            timedate = datetime.fromisoformat(timedate).astimezone(timezone.utc)
+            assert isinstance(timedate, datetime)
             mysql_cursor.execute(
                 'INSERT INTO log (watch_id, cycle, timedate, measure) VALUES (%s, %s, %s, %s)',
                 (mysql_watch_id, cycle, timedate, measure)

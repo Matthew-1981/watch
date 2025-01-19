@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib import parse
 
 import requests
@@ -250,7 +250,7 @@ class WatchFacade:
             ),
             watch_name=watch_name,
             cycle=cycle,
-            datetime=time,
+            datetime=time.astimezone(timezone.utc),
             measure=measure
         )
         return self._send(self.log_add_path, message, responses.LogAddedResponse)
@@ -290,7 +290,7 @@ class Manager:
     def is_logged_in(self) -> bool:
         return (self.token is not None
                 and self.expiration is not None
-                and self.expiration > datetime.now() + timedelta(seconds=5))
+                and self.expiration > datetime.now(timezone.utc) + timedelta(seconds=5))
 
     def _check_login(self):
         if not self.is_logged_in():
@@ -446,7 +446,7 @@ class Manager:
         self._resolve_watch()
         self._check_login()
         measure = round(measure, 2)
-        time = time if time is not None else datetime.now()
+        time = time.astimezone(timezone.utc) if time is not None else datetime.now(timezone.utc)
         resp = self.facade.add_log(self.token, self.watch, self.cycle, time, measure)
         self._handle_logged_in_response(resp)
         return resp

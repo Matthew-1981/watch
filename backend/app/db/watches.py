@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel
 from mysql.connector.aio.cursor import MySQLCursor
@@ -68,24 +68,10 @@ class WatchRecordManager:
                 watch_id=row[0],
                 user_id=row[1],
                 name=row[2],
-                date_of_creation=row[3]
+                date_of_creation=row[3].replace(tzinfo=timezone.utc)
             )
             out.append(WatchRecord(current))
         return tuple(out)
-
-    # @classmethod
-    # async def get_watch_by_id(cls, cursor: MySQLCursor, watch_id: int) -> Self:
-    #     await cursor.execute("SELECT * FROM watch WHERE watch_id = %s", (watch_id,))
-    #     row = await cursor.fetchone()
-    #     if row is None:
-    #         raise OperationError()
-    #     watch = ExistingWatch(
-    #         watch_id=row[0],
-    #         user_id=row[1],
-    #         name=row[2],
-    #         date_of_creation=row[3]
-    #     )
-    #     return cls(watch)
 
     async def get_watch_by_name(self, cursor: MySQLCursor, name: str) -> WatchRecord:
         await cursor.execute(
@@ -99,7 +85,7 @@ class WatchRecordManager:
             watch_id=row[0],
             user_id=row[1],
             name=row[2],
-            date_of_creation=row[3]
+            date_of_creation=row[3].replace(tzinfo=timezone.utc)
         )
         return WatchRecord(watch)
 
@@ -178,7 +164,7 @@ class LogRecordManager:
             log_id=row[0],
             watch_id=row[1],
             cycle=row[2],
-            timedate=row[3],
+            timedate=row[3].replace(tzinfo=timezone.utc),
             measure=row[4]
         )
         return LogRecord(log)
@@ -219,7 +205,7 @@ class LogRecordManager:
                 log_id=row[0],
                 watch_id=row[1],
                 cycle=row[2],
-                timedate=row[3],
+                timedate=row[3].replace(tzinfo=timezone.utc),
                 measure=row[4]
             )
             out.append(LogRecord(current))

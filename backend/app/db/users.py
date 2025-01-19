@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Self, NoReturn
 import asyncio
 
@@ -64,7 +64,7 @@ class UserRecord:
             user_id=row[0],
             user_name=row[1],
             password_hash=row[2],
-            date_of_creation=row[3]
+            date_of_creation=row[3].astimezone(timezone.utc)
         )
         return cls(user)
 
@@ -78,7 +78,7 @@ class UserRecord:
             user_id=row[0],
             user_name=row[1],
             password_hash=row[2],
-            date_of_creation=row[3]
+            date_of_creation=row[3].astimezone(timezone.utc)
         )
         return cls(user)
 
@@ -150,7 +150,7 @@ class TokenRecord:
             token_id=row[0],
             user_id=row[1],
             token=row[2],
-            expiration=row[3]
+            expiration=row[3].astimezone(timezone.utc)
         )
         return cls(token)
 
@@ -164,7 +164,7 @@ class TokenRecord:
             token_id=row[0],
             user_id=row[1],
             token=row[2],
-            expiration=row[3]
+            expiration=row[3].astimezone(timezone.utc)
         )
         return cls(token)
 
@@ -192,7 +192,7 @@ class DeleteTokenDaemonCreator:
         async with self.access.access() as wp:
             await wp.cursor.execute(
                 'DELETE FROM session_token WHERE expiration < %s',
-                (datetime.now(),)
+                (datetime.now(timezone.utc),)
             )
             await wp.commit()
 

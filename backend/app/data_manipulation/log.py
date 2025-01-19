@@ -8,7 +8,7 @@ from .interpolation import InterpolationAbstract
 
 
 class Record(dict):
-    s_date = dt.datetime(dt.MINYEAR, 1, 1)
+    s_date = dt.datetime(dt.MINYEAR, 1, 1, tzinfo=dt.timezone.utc)
 
     def __init__(self, datetime: dt.datetime | float, measure: float, **other):
         if isinstance(datetime, (float, int)):

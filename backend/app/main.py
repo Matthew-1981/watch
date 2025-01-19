@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi import status
@@ -119,7 +119,7 @@ async def add_watch(
         new_watch = db.NewWatch(
             user_id=auth_bundle.user.data.user_id,
             name=request.name,
-            date_of_creation=datetime.now()
+            date_of_creation=datetime.now(timezone.utc)
         )
         try:
             watch = await db.WatchRecordManager(auth_bundle.user).new_watch(wp.cursor, new_watch)
@@ -314,7 +314,9 @@ async def add_measurement(
         new_log = db.NewLog(
             watch_id=watch.data.watch_id,
             cycle=request.cycle,
-            timedate=request.datetime,
+            timedate=request.datetime.astimezone(timezone.utc)
+                if request.datetime.tzinfo is None
+                else request.datetime.replace(tzinfo=timezone.utc),
             measure=round(request.measure, 2)
         )
         log = await db.LogRecordManager(watch).new_log(wp.cursor, request.cycle, new_log)
