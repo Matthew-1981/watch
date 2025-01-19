@@ -229,7 +229,7 @@ def main():
 
     elif args.command == 'terminate':
         settings = get_config_from_user()
-        if not utils.yn_prompt(f"Are you sure you want to delete user '{settings.config_user.username}'?"
+        if not utils.yn_prompt(f"Are you sure you want to delete user '{settings.config_user.username}'? "
                                f"(THIS OPERATION IS NOT REVERSIBLE!)"):
             exit(0)
         facade = WatchFacade(
