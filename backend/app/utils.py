@@ -1,5 +1,9 @@
-from typing import Any
+from communication.responses import AuthResponse
+from .security import AuthBundle
 
 
-def convert_table(headers: tuple[str], table: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
-    return [{header: value for header, value in zip(headers, row)} for row in table]
+def parse_auth_bundle(auth_bundle: AuthBundle) -> AuthResponse:
+    return AuthResponse(
+        user=auth_bundle.user.data.user_name,
+        expiration_date=auth_bundle.token.data.expiration
+    )

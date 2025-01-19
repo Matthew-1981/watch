@@ -8,7 +8,7 @@ from .interpolation import InterpolationAbstract
 
 
 class Record(dict):
-    s_date = dt.datetime(dt.MINYEAR, 1, 1)
+    s_date = dt.datetime(dt.MINYEAR, 1, 1, tzinfo=dt.timezone.utc)
 
     def __init__(self, datetime: dt.datetime | float, measure: float, **other):
         if isinstance(datetime, (float, int)):
@@ -16,7 +16,7 @@ class Record(dict):
         super().__init__({'datetime': datetime, 'measure': measure, **other})
 
     @classmethod
-    def from_row(cls, headers: tuple[str], row: tuple[Any, ...]) -> Record:
+    def from_row(cls, headers: tuple[str, ...], row: tuple[Any, ...]) -> Record:
         if 'datetime' not in headers or 'measure' not in headers:
             raise ValueError("Headers must contain 'datetime' and 'measure'.")
         return cls(**{header: value for header, value in zip(headers, row)})
@@ -50,7 +50,7 @@ class WatchLogFrame:
         self.data: list[Record] = data.copy()
 
     @classmethod
-    def from_table(cls, headers: tuple[str], table: list[tuple[Any, ...]]) -> WatchLogFrame:
+    def from_table(cls, headers: tuple[str, ...], table: list[tuple[Any, ...]]) -> WatchLogFrame:
         return cls([Record.from_row(headers, row) for row in table])
 
     def difference(self, index: int) -> float | None:
@@ -69,7 +69,7 @@ class WatchLogFrame:
         return self.__class__(table)
 
     def fill(self, interpolation_method: type[InterpolationAbstract]) -> WatchLogFrame:
-        SECONDS_IN_DAY = 24 * 60 * 60
+        seconds_in_day = 24 * 60 * 60
 
         data = [(record.time_as_float, record.measure) for record in self.data]
         if len(self.data) == 0:
@@ -80,7 +80,7 @@ class WatchLogFrame:
         end = int(self.data[-1].time_as_float)
 
         table = []
-        for time in range(start, end + 1, SECONDS_IN_DAY):
+        for time in range(start, end + 1, seconds_in_day):
             table.append(Record(datetime=time, measure=round(f(time), 1)))
 
         return self.__class__(table)

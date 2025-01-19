@@ -1,6 +1,6 @@
-# Wristwatch accuracy tracking web app
+# Wristwatch accuracy tracking command line app
 
-This is a simple web app made with react frontend and fastapi backend 
+This is an overcomplicated command line app made with python frontend and fastapi backend 
 to track the accuracy of wristwatches.
 
 ## Installing the app

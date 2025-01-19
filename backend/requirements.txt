@@ -1,4 +1,10 @@
-fastapi~=0.111.0
-starlette~=0.37.2
-uvicorn~=0.29.0
-mysql-connector-python~=8.3.0
+python-dotenv
+fastapi
+starlette
+uvicorn
+pydantic
+mysql-connector-python
+httpx
+bcrypt==4.0.1
+passlib
+../communication
